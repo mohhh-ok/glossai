@@ -178,14 +178,14 @@ export function WordInfoView({
   );
 }
 
-function SpeakerButton({
+export function SpeakerButton({
   label,
   active,
   onClick,
 }: {
   label: string;
   active: boolean;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
 }) {
   return (
     <button

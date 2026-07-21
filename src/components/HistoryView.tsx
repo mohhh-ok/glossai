@@ -8,7 +8,8 @@ import { PENDING_TEXT_KEY } from "@/lib/pendingText";
 import { ExplainBody } from "./ExplainBody";
 import { GlossableText } from "./GlossableText";
 import { ReadAloudButton } from "./ReadAloudButton";
-import { WordInfoView } from "./WordInfoView";
+import { WordInfoView, SpeakerButton } from "./WordInfoView";
+import { useTts } from "@/lib/useTts";
 
 interface WordEntry {
   id: number;
@@ -355,6 +356,7 @@ function WordRow({
   onDelete: () => void;
   onInfoUpdated: (info: WordInfo) => void;
 }) {
+  const { play, playingText } = useTts();
   return (
     <li className="group py-3">
       <div
@@ -366,13 +368,23 @@ function WordRow({
         }}
         className="flex cursor-pointer items-center gap-3"
       >
-        <div className="min-w-0 flex-1">
-          <p className="font-serif-en text-lg text-[rgb(var(--gray-dark))]">
-            {entry.surface}
-          </p>
-          <p className="truncate text-sm text-[rgb(var(--gray))]">
-            {entry.info.meaningJa}
-          </p>
+        <div className="flex min-w-0 flex-1 items-baseline gap-2">
+          <div className="min-w-0">
+            <p className="font-serif-en text-lg text-[rgb(var(--gray-dark))]">
+              {entry.surface}
+            </p>
+            <p className="truncate text-sm text-[rgb(var(--gray))]">
+              {entry.info.meaningJa}
+            </p>
+          </div>
+          <SpeakerButton
+            label={`${entry.surface} の発音を再生`}
+            active={playingText === entry.surface}
+            onClick={(e) => {
+              e.stopPropagation();
+              play(entry.surface);
+            }}
+          />
         </div>
         <span className="shrink-0 text-xs text-[rgb(var(--gray))]">
           {entry.lookup_count}回・{formatMonthDay(entry.last_seen_at)}
