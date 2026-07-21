@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# glossai
 
-## Getting Started
+An open-source English reader that explains what you're reading — in Japanese.
 
-First, run the development server:
+Paste any English text and glossai reads it back to you: click a word or drag-select a short phrase to get its meaning, IPA pronunciation, nuance, etymology, and example sentences, all explained in Japanese with audio playback. Ask for a full paragraph-by-paragraph reading breakdown with one click.
+
+glossai is BYOK (bring your own key) and self-hosted — it never proxies your keys anywhere but the model providers themselves.
+
+![screenshot placeholder](./docs/screenshot.png)
+
+## Features
+
+- **Paste-and-read** — drop in any English text, no accounts, no setup beyond API keys.
+- **Word & phrase lookup** — click any word, or drag-select 2–6 words, to open a popover with meaning, part of speech, IPA, nuance, and etymology.
+- **Example sentences with audio** — every word comes with two contextual example sentences, each with its own speaker button.
+- **AI reading breakdown** — a streamed, sentence-by-sentence explanation of the whole passage, plus key expressions worth learning.
+- **BYOK, self-hosted** — bring your own Anthropic and OpenAI API keys; nothing is stored server-side beyond the request lifecycle.
+- **Provider abstraction** — the LLM and TTS backends sit behind thin interfaces (`src/lib/llm`, `src/lib/tts`), so swapping providers doesn't touch route handlers or UI.
+
+## Quick Start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm i
+cp .env.example .env.local
+# edit .env.local and add your API keys
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+All configuration is via environment variables (`.env.local`):
 
-## Learn More
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `ANTHROPIC_API_KEY` | Yes | — | Used for reading explanations and word/phrase lookups. |
+| `OPENAI_API_KEY` | Yes (for audio) | — | Used for text-to-speech playback. Without it, the app still works but speaker buttons return an error. |
+| `GLOSSAI_MODEL` | No | `claude-opus-4-8` | Anthropic model used for both the explain and word-lookup endpoints. |
+| `GLOSSAI_TTS_VOICE` | No | `alloy` | OpenAI TTS voice (`gpt-4o-mini-tts`). |
 
-To learn more about Next.js, take a look at the following resources:
+## BYOK
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+glossai is designed to run under your own infrastructure with your own API keys. There is no built-in proxy, usage limiting, or key management beyond reading the environment variables above at request time. If you deploy this publicly, put your own auth/rate-limiting in front of it — glossai does not include any.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## License
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT — see [LICENSE](./LICENSE).
