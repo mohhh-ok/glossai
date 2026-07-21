@@ -14,7 +14,7 @@ glossai is BYOK (bring your own key) and self-hosted — it never proxies your k
 - **Word & phrase lookup** — click any word, or drag-select 2–6 words, to open a popover with meaning, part of speech, IPA, nuance, and etymology.
 - **Example sentences with audio** — every word comes with two contextual example sentences, each with its own speaker button.
 - **AI reading breakdown** — a streamed, sentence-by-sentence explanation of the whole passage, plus key expressions worth learning.
-- **Persistent cache & history** — word lookups and reading breakdowns are cached in a local SQLite database, so looking up the same word or passage again returns instantly instead of re-generating. Every word you've looked up is browsable on the `/history` page — see [Data storage](#data-storage).
+- **Persistent cache & history** — word lookups and reading breakdowns are cached in a local SQLite database, so looking up the same word or passage again returns instantly instead of re-generating. Both are browsable on the `/history` page (単語 / 文章 tabs) — expand a passage to reread its full breakdown, or send it straight back into the reader. See [Data storage](#data-storage).
 - **BYOK, self-hosted** — bring your own Anthropic and OpenAI API keys; nothing is stored server-side beyond the request lifecycle.
 - **Plugin providers** — the LLM and TTS backends sit behind thin interfaces with a small registry (`src/lib/llm`, `src/lib/tts`), so swapping or adding a provider doesn't touch route handlers or UI. Audio works out of the box via macOS's built-in `say` — no API key needed for TTS.
 
@@ -85,7 +85,7 @@ Notes:
 
 ## Data storage
 
-Every word/phrase lookup and every reading breakdown is cached server-side in a SQLite database, so repeat lookups of the same word (or re-reading a passage you already asked for a breakdown of) skip generation entirely instead of re-calling the LLM. The cached words are also what powers the `/history` page.
+Every word/phrase lookup and every reading breakdown is cached server-side in a SQLite database, so repeat lookups of the same word (or re-reading a passage you already asked for a breakdown of) skip generation entirely instead of re-calling the LLM. Both tables power the `/history` page, split into a 単語 (word) and 文章 (explain) tab.
 
 - **Location**: `GLOSSAI_DB` (default `data/glossai.db`, created on first run — the parent directory is created automatically if missing).
 - **Contents**: word/phrase lookup cards (`words` table: surface form, context, the generated JSON, lookup count, timestamps) and reading-breakdown text (`explains` table, keyed by a hash of the source text). No API keys or request metadata beyond which provider/model produced each entry.

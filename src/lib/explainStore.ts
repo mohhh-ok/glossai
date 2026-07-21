@@ -22,6 +22,35 @@ export function findExplainByHash(hash: string): ExplainRow | undefined {
     .get(hash) as ExplainRow | undefined;
 }
 
+/** An `explains` row as surfaced to the `/history` page (no `text_hash`). */
+export interface ExplainHistoryEntry {
+  id: number;
+  text: string;
+  body: string;
+  provider: string | null;
+  model: string | null;
+  created_at: string;
+}
+
+const EXPLAIN_HISTORY_LIMIT = 200;
+
+export function listExplains(limit = EXPLAIN_HISTORY_LIMIT): ExplainHistoryEntry[] {
+  return getDb()
+    .prepare(
+      `SELECT id, text, body, provider, model, created_at
+       FROM explains
+       ORDER BY created_at DESC
+       LIMIT ?`
+    )
+    .all(limit) as ExplainHistoryEntry[];
+}
+
+/** Returns true if a row was deleted. */
+export function deleteExplain(id: number): boolean {
+  const result = getDb().prepare("DELETE FROM explains WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
 /**
  * Persists a completed explanation. Uses INSERT OR IGNORE for the same
  * reason as wordStore.insertWord: two concurrent first-time requests for the
