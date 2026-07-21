@@ -235,8 +235,18 @@ export function GlossCard({ word, anchor, onClose }: GlossCardProps) {
           <div className="pr-4">
             <WordInfoView
               info={top.info}
+              surface={top.word}
               onLookup={handleLookup}
               onBack={stack.length > 1 ? handleBack : undefined}
+              onInfoUpdated={(info) =>
+                // Reuses the "loaded" action: from the reducer's point of
+                // view, "examples were topped up" and "a fresh fetch
+                // resolved" are the same thing — replace this entry's info,
+                // clear its error. `cached: true` because this info is now
+                // (freshly) persisted, same as any other post-generation
+                // state — keeps the "保存済み/再生成" footer below showing.
+                dispatch({ type: "loaded", id: top.id, info: { ...info, cached: true } })
+              }
             />
 
             {top.info.cached && (

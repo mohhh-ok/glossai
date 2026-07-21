@@ -1,7 +1,12 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { z } from "zod";
-import { EXPLAIN_SYSTEM_PROMPT, WORD_SYSTEM_PROMPT } from "./prompts";
-import { WordInfoSchema, type WordInfo } from "./schema";
+import {
+  buildMoreExamplesInput,
+  EXPLAIN_SYSTEM_PROMPT,
+  MORE_EXAMPLES_SYSTEM_PROMPT,
+  WORD_SYSTEM_PROMPT,
+} from "./prompts";
+import { ExamplesSchema, WordInfoSchema, type Example, type WordInfo } from "./schema";
 import type { LlmProvider } from "./types";
 import { ClaudeCliError, ClaudeCliNotFoundError } from "./errors";
 
@@ -22,12 +27,13 @@ const PROCESS_TIMEOUT_MS = 120_000;
  * `Error: --json-schema is not a valid JSON Schema: no schema with key or
  * ref "https://json-schema.org/draft/2020-12/schema"` — it tries to resolve
  * it as a $ref against a schema registry it doesn't have loaded), so it must
- * be stripped before passing the schema on the command line.
+ * be stripped before passing the schema on the command line. Shared by every
+ * structured-output call (wordInfo, moreExamples) — not just WordInfoSchema.
  */
-function wordInfoJsonSchema(): string {
-  const schema = z.toJSONSchema(WordInfoSchema) as Record<string, unknown>;
-  delete schema.$schema;
-  return JSON.stringify(schema);
+function jsonSchemaFor(schema: z.ZodType): string {
+  const json = z.toJSONSchema(schema) as Record<string, unknown>;
+  delete json.$schema;
+  return JSON.stringify(json);
 }
 
 /**
@@ -360,14 +366,60 @@ export class ClaudeCodeProvider implements LlmProvider {
    * propagates immediately without retrying.
    */
   async wordInfo(word: string): Promise<WordInfo> {
+    return this.generateStructured(
+      WordInfoSchema,
+      WORD_SYSTEM_PROMPT,
+      `単語/フレーズ: ${word}`,
+      "low",
+      "単語情報"
+    );
+  }
+
+  /**
+   * Generates `count` additional example sentences avoiding repeats of
+   * `existing`. Shares generateStructured's --json-schema + zod-validate +
+   * no-schema-fallback machinery with wordInfo above — the only difference
+   * is the schema/prompt/input. `count` is enforced client-side via `slice`
+   * as defense in depth: the prompt asks for it exactly, but nothing stops a
+   * model from ignoring that and returning more.
+   */
+  async moreExamples(
+    word: string,
+    existing: string[],
+    count: number
+  ): Promise<Example[]> {
+    const result = await this.generateStructured(
+      ExamplesSchema,
+      MORE_EXAMPLES_SYSTEM_PROMPT,
+      buildMoreExamplesInput(word, existing, count),
+      "low",
+      "追加の例文"
+    );
+    return result.examples.slice(0, count);
+  }
+
+  /**
+   * Generic structured-output call shared by wordInfo/moreExamples: runs
+   * `claude` with `--json-schema` for `schema`, re-validates the result with
+   * zod, and retries once on a parse/validation failure. Falls back to
+   * generateStructuredWithoutSchema on the CLI's own retry-budget failure
+   * (SUBTYPE_STRUCTURED_OUTPUT_FAILED). `label` is only used to make the
+   * final error message legible (e.g. "単語情報の解析に失敗しました").
+   */
+  private async generateStructured<T extends z.ZodType>(
+    schema: T,
+    systemPrompt: string,
+    stdinText: string,
+    effort: "low" | "medium",
+    label: string
+  ): Promise<z.infer<T>> {
     const args = [
-      ...baseArgs(WORD_SYSTEM_PROMPT, "low"),
+      ...baseArgs(systemPrompt, effort),
       "--json-schema",
-      wordInfoJsonSchema(),
+      jsonSchemaFor(schema),
       "--output-format",
       "json",
     ];
-    const stdinText = `単語/フレーズ: ${word}`;
 
     let lastError: unknown;
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -383,20 +435,26 @@ export class ClaudeCodeProvider implements LlmProvider {
           err instanceof ClaudeCliError &&
           err.subtype === SUBTYPE_STRUCTURED_OUTPUT_FAILED
         ) {
-          return this.wordInfoWithoutSchema(stdinText);
+          return this.generateStructuredWithoutSchema(
+            schema,
+            systemPrompt,
+            stdinText,
+            effort,
+            label
+          );
         }
         throw err;
       }
       const candidate =
         resultEvent.structured_output ?? tryParseJson(resultEvent.result);
-      const parsed = WordInfoSchema.safeParse(candidate);
+      const parsed = schema.safeParse(candidate);
       if (parsed.success) {
         return parsed.data;
       }
       lastError = parsed.error;
     }
     throw new ClaudeCliError(
-      `単語情報の解析に失敗しました: ${
+      `${label}の解析に失敗しました: ${
         lastError instanceof Error ? lastError.message : String(lastError)
       }`,
       null
@@ -407,18 +465,28 @@ export class ClaudeCodeProvider implements LlmProvider {
    * フォールバック経路: --json-schemaを使わず、プロンプト指示で素のJSONを
    * 出力させてzodで検証する。構造化出力のリトライ上限に達したときのみ呼ぶ。
    */
-  private async wordInfoWithoutSchema(stdinText: string): Promise<WordInfo> {
-    const systemPrompt = `${WORD_SYSTEM_PROMPT}
+  private async generateStructuredWithoutSchema<T extends z.ZodType>(
+    schema: T,
+    systemPrompt: string,
+    stdinText: string,
+    effort: "low" | "medium",
+    label: string
+  ): Promise<z.infer<T>> {
+    const fallbackSystemPrompt = `${systemPrompt}
 
 回答は上記フィールドを持つ単一のJSONオブジェクトのみを出力すること。コードフェンスや説明文をJSONの前後に付けないこと。`;
-    const args = [...baseArgs(systemPrompt, "low"), "--output-format", "json"];
+    const args = [
+      ...baseArgs(fallbackSystemPrompt, effort),
+      "--output-format",
+      "json",
+    ];
     const resultEvent = await runClaudeJson(args, stdinText);
-    const parsed = WordInfoSchema.safeParse(tryParseJson(resultEvent.result));
+    const parsed = schema.safeParse(tryParseJson(resultEvent.result));
     if (parsed.success) {
       return parsed.data;
     }
     throw new ClaudeCliError(
-      `単語情報の解析に失敗しました(フォールバック経路): ${parsed.error.message}`,
+      `${label}の解析に失敗しました(フォールバック経路): ${parsed.error.message}`,
       null
     );
   }

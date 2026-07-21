@@ -1,12 +1,25 @@
 "use client";
 
+import { useState } from "react";
 import type { WordInfo } from "@/lib/llm/schema";
+import { MAX_EXAMPLES_PER_WORD } from "@/lib/mergeExamples";
 import { useTts } from "@/lib/useTts";
+import { cacheKey, setCachedWordInfo } from "@/lib/wordCache";
 import { GlossableText } from "./GlossableText";
 import { SegmentedText } from "./SegmentedText";
 
 interface WordInfoViewProps {
   info: WordInfo;
+  /**
+   * The exact string this entry was originally looked up under (GlossCard's
+   * `top.word`, HistoryView's `entry.surface`) — NOT necessarily the same as
+   * `info.word`, which the model may have normalized to a root form (see
+   * WORD_SYSTEM_PROMPT). "例文をもっと生成" must key both the wordCache
+   * write and the POST /api/word/examples request off this, not `info.word`,
+   * so it lands on the exact row/cache-entry the user is looking at instead
+   * of a differently-keyed one that happens to share a normalized headword.
+   */
+  surface: string;
   /**
    * When set, clicking an embedded English word/phrase (an example
    * sentence, or an English run inside meaningJa/nuanceJa/etymologyJa)
@@ -21,6 +34,18 @@ interface WordInfoViewProps {
    * there's nowhere to go back to (HistoryView, or GlossCard showing its
    * first/only entry). */
   onBack?: () => void;
+  /**
+   * Called after "例文をもっと生成" successfully persists a merged
+   * WordInfo. Required, not optional: WordInfoView is a pure render of the
+   * `info` prop — it doesn't keep an internal mirror of it that it'd need to
+   * resync on every external change via an effect (that's exactly the
+   * derived-state-from-props anti-pattern react-hooks/set-state-in-effect
+   * flags) — so this callback flowing the merged WordInfo back into
+   * whatever state the caller owns (GlossCard's nav-stack entry,
+   * HistoryView's list state) is the only way the newly generated examples
+   * ever make it back into view.
+   */
+  onInfoUpdated: (info: WordInfo) => void;
 }
 
 /**
@@ -29,8 +54,49 @@ interface WordInfoViewProps {
  * Shared between GlossCard's popover and the expanded row on /history so the
  * two surfaces can't drift out of sync.
  */
-export function WordInfoView({ info, onLookup, onBack }: WordInfoViewProps) {
+export function WordInfoView({
+  info,
+  surface,
+  onLookup,
+  onBack,
+  onInfoUpdated,
+}: WordInfoViewProps) {
   const { play, playingText, error: ttsError } = useTts();
+  const [isGeneratingMore, setIsGeneratingMore] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
+  const remaining = MAX_EXAMPLES_PER_WORD - info.examples.length;
+
+  async function handleGenerateMore() {
+    setIsGeneratingMore(true);
+    setGenerateError(null);
+    try {
+      const res = await fetch("/api/word/examples", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ word: surface }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(data?.error ?? "例文の生成に失敗しました。");
+      }
+      const updated = (await res.json()) as WordInfo;
+      // Single write site for the shared wordCache: whichever surface
+      // (GlossCard or HistoryView) triggered this, any GlossCard opened for
+      // `surface` afterwards — in this session, even a brand-new one — must
+      // see the grown example list instead of the stale cached one.
+      setCachedWordInfo(cacheKey(surface), { ...updated, cached: true });
+      onInfoUpdated(updated);
+    } catch (e) {
+      setGenerateError(
+        e instanceof Error ? e.message : "例文の生成に失敗しました。"
+      );
+    } finally {
+      setIsGeneratingMore(false);
+    }
+  }
 
   return (
     <div>
@@ -88,6 +154,22 @@ export function WordInfoView({ info, onLookup, onBack }: WordInfoViewProps) {
           </li>
         ))}
       </ul>
+
+      {remaining > 0 && (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={handleGenerateMore}
+            disabled={isGeneratingMore}
+            className="text-xs font-bold text-[var(--accent)] hover:underline disabled:opacity-50"
+          >
+            {isGeneratingMore ? "生成中…" : `例文をもっと生成(あと${remaining}個)`}
+          </button>
+          {generateError && (
+            <p className="mt-1 text-xs text-[var(--accent-dark)]">{generateError}</p>
+          )}
+        </div>
+      )}
 
       {ttsError && (
         <p className="mt-3 text-xs text-[var(--accent-dark)]">{ttsError}</p>

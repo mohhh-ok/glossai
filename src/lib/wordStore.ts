@@ -105,6 +105,21 @@ export function updateWord(id: number, params: WordWriteParams): void {
     });
 }
 
+/**
+ * Merges a delta into an existing row's `info` JSON and bumps
+ * `last_seen_at`, without touching `surface`/`provider`/`model`/
+ * `lookup_count`. Used by POST /api/word/examples's "例文をもっと生成"
+ * path — distinct from updateWord's force-regenerate path, which replaces
+ * the whole row (including provider/model) and resets examples back down to
+ * the base 2.
+ */
+export function updateWordInfoByKey(key: string, info: WordInfo): void {
+  const now = new Date().toISOString();
+  getDb()
+    .prepare("UPDATE words SET info = @info, last_seen_at = @now WHERE key = @key")
+    .run({ key, info: JSON.stringify(info), now });
+}
+
 const HISTORY_LIMIT = 500;
 
 export function listWordHistory(): WordHistoryEntry[] {

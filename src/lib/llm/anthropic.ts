@@ -1,7 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { EXPLAIN_SYSTEM_PROMPT, WORD_SYSTEM_PROMPT } from "./prompts";
-import { WordInfoSchema, type WordInfo } from "./schema";
+import {
+  buildMoreExamplesInput,
+  EXPLAIN_SYSTEM_PROMPT,
+  MORE_EXAMPLES_SYSTEM_PROMPT,
+  WORD_SYSTEM_PROMPT,
+} from "./prompts";
+import { ExamplesSchema, WordInfoSchema, type Example, type WordInfo } from "./schema";
 import type { LlmProvider } from "./types";
 
 const MODEL = process.env.GLOSSAI_MODEL || "claude-opus-4-8";
@@ -75,5 +80,31 @@ export class AnthropicLlmProvider implements LlmProvider {
     }
 
     return response.parsed_output;
+  }
+
+  async moreExamples(
+    word: string,
+    existing: string[],
+    count: number
+  ): Promise<Example[]> {
+    const response = await client().messages.parse({
+      model: MODEL,
+      max_tokens: 4000,
+      thinking: { type: "adaptive" },
+      output_config: {
+        effort: "low",
+        format: zodOutputFormat(ExamplesSchema),
+      },
+      system: MORE_EXAMPLES_SYSTEM_PROMPT,
+      messages: [
+        { role: "user", content: buildMoreExamplesInput(word, existing, count) },
+      ],
+    });
+
+    if (!response.parsed_output) {
+      throw new Error("追加の例文の解析に失敗しました。");
+    }
+
+    return response.parsed_output.examples.slice(0, count);
   }
 }

@@ -28,3 +28,30 @@ export const WORD_SYSTEM_PROMPT = `あなたは英語の語彙・語法に精通
 - examples: その語の代表的な意味・用法で使われる自然な例文をちょうど2つ作成する。それぞれ英文とその日本語訳のペアとする。
 
 構造化出力のフィールド名は word, ipa, partOfSpeech, meaningJa, nuanceJa, etymologyJa, examples を一字一句そのまま使うこと。$PARAMETER_NAME のようなプレースホルダをフィールド名として書いてはならない。上記以外のフィールドを追加してはならない。`;
+
+export const MORE_EXAMPLES_SYSTEM_PROMPT = `あなたは英語の語彙・語法に精通した辞書編集者です。ユーザーから、単語またはフレーズと、追加で必要な例文の個数、そしてその語についてすでに作成済みの例文一覧が渡されます。特定の文章の文脈に依存しない、辞書的な例文を指定された個数ちょうど作成してください。
+
+- その語の代表的な意味・用法で使われる自然な例文を作ること。
+- 渡された既存の例文一覧と同じ文、または酷似した場面・言い回しの文は避けること。まだ見せていない場面・共起表現(コロケーション)を優先し、多様性を持たせること。
+- 各例文は自然な英文と、その日本語訳のペアとする。
+- 特定の文章・場面を前提にした言及はしないこと(その語だけを渡された辞書的な例文として成立させる)。
+- 個数は指定された数ちょうどにすること。多くても少なくてもいけない。
+
+構造化出力のフィールド名は examples(各要素は en, ja)を一字一句そのまま使うこと。$PARAMETER_NAME のようなプレースホルダをフィールド名として書いてはならない。上記以外のフィールドを追加してはならない。`;
+
+/**
+ * Builds the stdin/user-message text for MORE_EXAMPLES_SYSTEM_PROMPT.
+ * Shared by both providers (claude-code.ts, anthropic.ts) so the input
+ * format has exactly one definition.
+ */
+export function buildMoreExamplesInput(
+  word: string,
+  existing: string[],
+  count: number
+): string {
+  const existingLines =
+    existing.length > 0
+      ? existing.map((en) => `- ${en}`).join("\n")
+      : "(なし)";
+  return `単語/フレーズ: ${word}\n個数: ${count}\n既存の例文:\n${existingLines}`;
+}

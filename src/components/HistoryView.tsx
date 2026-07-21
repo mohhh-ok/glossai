@@ -121,6 +121,22 @@ export function HistoryView() {
     setExpandedWordIds((prev) => toggleSet(prev, id));
   }
 
+  // "例文をもっと生成" は WordInfoView 内で完結して永続化まで済ませるので、
+  // ここでは一覧の state を新しい WordInfo で上書きするだけでよい(再フェッチ
+  // 不要)。並び順(last_seen_at)は変わらないので insertWordSorted のような
+  // 並べ替えは不要。
+  function handleWordInfoUpdated(id: number, info: WordInfo) {
+    setData(
+      (prev) =>
+        prev && {
+          ...prev,
+          words: prev.words.map((entry) =>
+            entry.id === id ? { ...entry, info } : entry
+          ),
+        }
+    );
+  }
+
   function toggleExplainExpanded(id: number) {
     setExpandedExplainIds((prev) => toggleSet(prev, id));
   }
@@ -253,6 +269,7 @@ export function HistoryView() {
                     expanded={expandedWordIds.has(entry.id)}
                     onToggle={() => toggleWordExpanded(entry.id)}
                     onDelete={() => handleDeleteWord(entry.id)}
+                    onInfoUpdated={(info) => handleWordInfoUpdated(entry.id, info)}
                   />
                 ))}
               </ul>
@@ -330,11 +347,13 @@ function WordRow({
   expanded,
   onToggle,
   onDelete,
+  onInfoUpdated,
 }: {
   entry: WordEntry;
   expanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  onInfoUpdated: (info: WordInfo) => void;
 }) {
   return (
     <li className="group py-3">
@@ -373,7 +392,11 @@ function WordRow({
 
       {expanded && (
         <div className="gloss-card mt-3 rounded-md bg-white p-4">
-          <WordInfoView info={entry.info} />
+          <WordInfoView
+            info={entry.info}
+            surface={entry.surface}
+            onInfoUpdated={onInfoUpdated}
+          />
         </div>
       )}
     </li>

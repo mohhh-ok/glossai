@@ -1,4 +1,4 @@
-import type { WordInfo } from "./schema";
+import type { Example, WordInfo } from "./schema";
 
 /**
  * Thin provider abstraction so the LLM backend can be swapped without
@@ -31,4 +31,19 @@ export interface LlmProvider {
    * into an explanation later served for an unrelated one.
    */
   wordInfo(word: string): Promise<WordInfo>;
+
+  /**
+   * Generates up to `count` additional example sentences for a word/phrase
+   * already looked up (POST /api/word/examples's "例文をもっと生成"). Avoids
+   * repeating `existing` (the `en` side of examples already shown to the
+   * user) so a repeated click keeps surfacing new scenes/collocations
+   * instead of the same handful of sentences. Context-free, same as
+   * wordInfo() above — see its doc comment.
+   *
+   * The returned array is capped at `count` by the implementation (a
+   * provider that ignores the requested count and returns extras must not
+   * leak them to the caller) but may be shorter if generation/validation
+   * fails partway — callers should not assume exactly `count` come back.
+   */
+  moreExamples(word: string, existing: string[], count: number): Promise<Example[]>;
 }
