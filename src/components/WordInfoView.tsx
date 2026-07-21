@@ -2,9 +2,34 @@
 
 import type { WordInfo } from "@/lib/llm/schema";
 import { useTts } from "@/lib/useTts";
+import { GlossableText } from "./GlossableText";
+import { SegmentedText } from "./SegmentedText";
 
 interface WordInfoViewProps {
   info: WordInfo;
+  /**
+   * Context `info.word` was itself looked up under. Used as the fetch
+   * context when a click inside meaningJa/nuanceJa/etymologyJa (prose
+   * *about* info.word, not about the clicked run) triggers a lookup — only
+   * meaningful when `onLookup` is also passed.
+   */
+  context?: string;
+  /**
+   * When set, clicking an embedded English word/phrase (an example
+   * sentence, or an English run inside meaningJa/nuanceJa/etymologyJa)
+   * doesn't open its own GlossCard portal — it calls back with
+   * (phrase, context) so the caller (GlossCard) can navigate within the same
+   * card instead. Examples pass their own sentence as context; meaning/
+   * nuance/etymology runs pass `context` (info.word's own lookup context).
+   * Omitted → GlossableText's default self-managed portal behavior, which
+   * is what HistoryView's word-tab expansion (WordInfoView shown outside
+   * any GlossCard) relies on.
+   */
+  onLookup?: (phrase: string, context: string) => void;
+  /** Rendered as a "←" button to the left of the headword; omitted when
+   * there's nowhere to go back to (HistoryView, or GlossCard showing its
+   * first/only entry). */
+  onBack?: () => void;
 }
 
 /**
@@ -13,12 +38,31 @@ interface WordInfoViewProps {
  * Shared between GlossCard's popover and the expanded row on /history so the
  * two surfaces can't drift out of sync.
  */
-export function WordInfoView({ info }: WordInfoViewProps) {
+export function WordInfoView({ info, context, onLookup, onBack }: WordInfoViewProps) {
   const { play, playingText, error: ttsError } = useTts();
+
+  // meaningJa/nuanceJa/etymologyJa are *about* info.word, so a lookup
+  // triggered from inside them should use info.word's own context, not the
+  // clicked run's text — hence binding `context` here rather than letting
+  // SegmentedText/GlossableText supply their own text as context.
+  const fieldLookup =
+    onLookup && context !== undefined
+      ? (phrase: string) => onLookup(phrase, context)
+      : undefined;
 
   return (
     <div>
       <div className="flex items-baseline gap-2">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="前の単語に戻る"
+            className="text-lg leading-none text-[rgb(var(--gray))] hover:text-[var(--accent)]"
+          >
+            ←
+          </button>
+        )}
         <p className="font-serif-en text-xl text-[rgb(var(--gray-dark))]">{info.word}</p>
         <p className="text-sm text-[rgb(var(--gray))]">{info.ipa}</p>
         <SpeakerButton
@@ -29,13 +73,17 @@ export function WordInfoView({ info }: WordInfoViewProps) {
       </div>
       <p className="mt-1 text-xs font-bold text-[rgb(var(--gray))]">{info.partOfSpeech}</p>
 
-      <p className="mt-2 text-[15px]">{info.meaningJa}</p>
+      <p className="mt-2 text-[15px]">
+        <SegmentedText text={info.meaningJa} onLookup={fieldLookup} />
+      </p>
       <p className="mt-2 text-sm leading-relaxed text-[rgb(var(--gray-dark))]">
-        {info.nuanceJa}
+        <SegmentedText text={info.nuanceJa} onLookup={fieldLookup} />
       </p>
 
       <p className="mt-4 text-xs font-bold text-[rgb(var(--gray))]">語源</p>
-      <p className="mt-1 text-sm leading-relaxed">{info.etymologyJa}</p>
+      <p className="mt-1 text-sm leading-relaxed">
+        <SegmentedText text={info.etymologyJa} onLookup={fieldLookup} />
+      </p>
 
       <p className="mt-4 text-xs font-bold text-[rgb(var(--gray))]">例文</p>
       <ul className="mt-1 space-y-2">
@@ -47,7 +95,12 @@ export function WordInfoView({ info }: WordInfoViewProps) {
                 active={playingText === ex.en}
                 onClick={() => play(ex.en)}
               />
-              <span className="font-serif-en text-sm leading-snug">{ex.en}</span>
+              <GlossableText
+                text={ex.en}
+                variant="inline"
+                className="text-sm leading-snug"
+                onLookup={onLookup ? (phrase) => onLookup(phrase, ex.en) : undefined}
+              />
             </div>
             <p className="pl-6 text-sm text-[rgb(var(--gray))]">{ex.ja}</p>
           </li>

@@ -26,6 +26,16 @@ interface GlossableTextProps {
    * "reader" and "quote" look like.
    */
   className?: string;
+  /**
+   * When set, GlossableText stops managing its own GlossCard/portal — a
+   * word click or a 2–6 word drag-selection instead calls back with the
+   * looked-up phrase and viewport anchor coordinates, letting the caller
+   * decide what happens (e.g. GlossCard navigating within itself instead of
+   * opening a nested popover). Omitted → the default self-managed portal
+   * behavior below, used by ReaderView, ExplainBody/SegmentedText, and
+   * HistoryView's excerpt views.
+   */
+  onLookup?: (phrase: string, anchor: { x: number; y: number }) => void;
 }
 
 interface GlossTarget {
@@ -61,21 +71,26 @@ export function GlossableText({
   text,
   variant = "reader",
   className,
+  onLookup,
 }: GlossableTextProps) {
   const tokens = useMemo(() => tokenize(text), [text]);
   const [gloss, setGloss] = useState<GlossTarget | null>(null);
 
-  function openGloss(phrase: string, x: number, y: number) {
-    setGloss({ phrase, anchor: { x, y } });
+  function triggerLookup(phrase: string, x: number, y: number) {
+    if (onLookup) {
+      onLookup(phrase, { x, y });
+    } else {
+      setGloss({ phrase, anchor: { x, y } });
+    }
   }
 
   function handleWordClick(word: string, e: React.MouseEvent) {
     // If a drag-selection just produced a non-empty selection, the
-    // mouseup handler below already opened (or will open) a phrase card —
-    // don't also open a single-word card for the same gesture.
+    // mouseup handler below already triggered (or will trigger) a phrase
+    // lookup — don't also trigger a single-word one for the same gesture.
     const selected = window.getSelection()?.toString().trim();
     if (selected) return;
-    openGloss(word, e.clientX, e.clientY);
+    triggerLookup(word, e.clientX, e.clientY);
   }
 
   function handleMouseUp(e: React.MouseEvent) {
@@ -86,7 +101,7 @@ export function GlossableText({
     const wordCount = selected.split(/\s+/).filter(Boolean).length;
     if (wordCount < 2 || wordCount > 6) return;
 
-    openGloss(selected, e.clientX, e.clientY);
+    triggerLookup(selected, e.clientX, e.clientY);
   }
 
   const Tag = VARIANT_TAG[variant];

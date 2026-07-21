@@ -1,8 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
-import { splitExplainSegments } from "@/lib/explainSegments";
-import { GlossableText } from "./GlossableText";
+import { SegmentedText } from "./SegmentedText";
 
 interface ExplainBodyProps {
   /** Raw AI 解説 (EXPLAIN) body — plain Japanese-led prose with embedded
@@ -25,22 +23,14 @@ const BASE_CLASS = "whitespace-pre-wrap text-[15px] leading-relaxed";
 /**
  * Shared renderer for AI 解説 bodies (ReaderView's live panel and the
  * /history 文章 tab's expanded row). Splits `text` into English/other runs
- * via splitExplainSegments and renders the English runs through
- * GlossableText's "inline" variant, so users can open a GlossCard straight
- * from the explanation prose — not just from the original passage above it.
+ * via SegmentedText and renders the English runs through GlossableText's
+ * "inline" variant, so users can open a GlossCard straight from the
+ * explanation prose — not just from the original passage above it.
  */
 export function ExplainBody({ text, className, trailing }: ExplainBodyProps) {
-  const segments = useMemo(() => splitExplainSegments(text), [text]);
-
   return (
     <p className={className ? `${BASE_CLASS} ${className}` : BASE_CLASS}>
-      {segments.map((seg, i) =>
-        seg.type === "en" ? (
-          <GlossableText key={i} text={seg.text} variant="inline" />
-        ) : (
-          <span key={i}>{seg.text}</span>
-        )
-      )}
+      <SegmentedText text={text} />
       {trailing}
     </p>
   );
