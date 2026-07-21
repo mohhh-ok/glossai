@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { tokenize } from "@/lib/tokenize";
 import { GlossCard } from "./GlossCard";
 
-export type GlossableTextVariant = "reader" | "quote";
+export type GlossableTextVariant = "reader" | "quote" | "inline";
 
 interface GlossableTextProps {
   /** The English passage to render. Also used as GlossCard's lookup context. */
@@ -12,7 +13,10 @@ interface GlossableTextProps {
   /**
    * Visual preset. "reader" is the large serif reading layout used by
    * ReaderView; "quote" is the smaller inset blockquote look used for the
-   * excerpt shown in /history. Defaults to "reader".
+   * excerpt shown in /history; "inline" is a bare span (no block padding/
+   * background, no font-size override) for English runs embedded inside
+   * surrounding prose, e.g. AI 解説 bodies via ExplainBody. Defaults to
+   * "reader".
    */
   variant?: GlossableTextVariant;
   /**
@@ -29,9 +33,10 @@ interface GlossTarget {
   anchor: { x: number; y: number };
 }
 
-const VARIANT_TAG: Record<GlossableTextVariant, "p" | "blockquote"> = {
+const VARIANT_TAG: Record<GlossableTextVariant, "p" | "blockquote" | "span"> = {
   reader: "p",
   quote: "blockquote",
+  inline: "span",
 };
 
 const VARIANT_CLASSES: Record<GlossableTextVariant, string> = {
@@ -39,6 +44,10 @@ const VARIANT_CLASSES: Record<GlossableTextVariant, string> = {
     "font-serif-en select-text text-[1.15rem] leading-[1.9] text-[rgb(var(--gray-dark))]",
   quote:
     "font-serif-en select-text rounded-md bg-[rgb(242,240,238)] p-3 text-[14px] leading-relaxed text-[rgb(var(--gray-dark))]",
+  // No size/color/background here on purpose — inline runs sit inside
+  // surrounding prose (e.g. ExplainBody's <p>) and should inherit its type
+  // size and color, just switching to the serif-en face for the English run.
+  inline: "font-serif-en select-text",
 };
 
 /**
@@ -104,17 +113,25 @@ export function GlossableText({
         )}
       </Tag>
 
-      {gloss && (
-        <GlossCard
-          // Force a fresh mount per lookup target so GlossCard's lazy
-          // cache-hit state initializer always runs against the right key.
-          key={`${gloss.phrase}-${gloss.anchor.x}-${gloss.anchor.y}`}
-          word={gloss.phrase}
-          context={text}
-          anchor={gloss.anchor}
-          onClose={() => setGloss(null)}
-        />
-      )}
+      {gloss &&
+        // Portal to body: GlossCard contains block elements (<p>/<ul>), so it
+        // must not render inside the surrounding markup — the inline variant
+        // sits inside ExplainBody's <p>, where nested blocks are invalid HTML
+        // and trigger React hydration errors. GlossCard is position:fixed with
+        // viewport coordinates, so the portal changes no visual behavior.
+        // Opens only on user interaction, so document is always available.
+        createPortal(
+          <GlossCard
+            // Force a fresh mount per lookup target so GlossCard's lazy
+            // cache-hit state initializer always runs against the right key.
+            key={`${gloss.phrase}-${gloss.anchor.x}-${gloss.anchor.y}`}
+            word={gloss.phrase}
+            context={text}
+            anchor={gloss.anchor}
+            onClose={() => setGloss(null)}
+          />,
+          document.body
+        )}
     </>
   );
 }

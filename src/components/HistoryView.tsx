@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { WordInfo } from "@/lib/llm/schema";
 import { PENDING_TEXT_KEY } from "@/lib/pendingText";
+import { ExplainBody } from "./ExplainBody";
 import { GlossableText } from "./GlossableText";
 import { WordInfoView } from "./WordInfoView";
 
@@ -347,9 +348,7 @@ function ExplainRow({
       {expanded && (
         <div className="gloss-card mt-3 rounded-md bg-white p-4">
           <GlossableText text={entry.text} variant="quote" />
-          <p className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed">
-            {entry.body}
-          </p>
+          <ExplainBody text={entry.body} className="mt-4" />
           <div className="mt-4 flex justify-end">
             <button
               type="button"

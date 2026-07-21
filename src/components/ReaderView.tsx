@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { ExplainBody } from "./ExplainBody";
 import { GlossableText } from "./GlossableText";
 
 interface ReaderViewProps {
@@ -99,14 +100,17 @@ export function ReaderView({ text, onBack }: ReaderViewProps) {
             {explainError ? (
               <p className="mt-3 text-sm text-[var(--accent-dark)]">{explainError}</p>
             ) : (
-              <p className="mt-3 whitespace-pre-wrap text-[15px] leading-relaxed">
-                {explainText}
-                {isExplaining && (
-                  <span className="ml-0.5 inline-block w-[0.5em] animate-pulse bg-[var(--accent)] align-baseline">
-                    &nbsp;
-                  </span>
-                )}
-              </p>
+              <ExplainBody
+                text={explainText}
+                className="mt-3"
+                trailing={
+                  isExplaining && (
+                    <span className="ml-0.5 inline-block w-[0.5em] animate-pulse bg-[var(--accent)] align-baseline">
+                      &nbsp;
+                    </span>
+                  )
+                }
+              />
             )}
           </section>
         )}

@@ -14,6 +14,7 @@ glossai is BYOK (bring your own key) and self-hosted — it never proxies your k
 - **Word & phrase lookup** — click any word, or drag-select 2–6 words, to open a popover with meaning, part of speech, IPA, nuance, and etymology.
 - **Example sentences with audio** — every word comes with two contextual example sentences, each with its own speaker button.
 - **AI reading breakdown** — a streamed, sentence-by-sentence explanation of the whole passage, plus key expressions worth learning.
+- **Clickable English inside explanations** — English words/phrases quoted inside the AI reading breakdown are clickable too, opening the same GlossCard as the passage above it.
 - **Persistent cache & history** — word lookups and reading breakdowns are cached in a local SQLite database, so looking up the same word or passage again returns instantly instead of re-generating. Both are browsable on the `/history` page (単語 / 文章 tabs) — expand a passage to reread its full breakdown, or send it straight back into the reader. See [Data storage](#data-storage).
 - **BYOK, self-hosted** — bring your own Anthropic and OpenAI API keys; nothing is stored server-side beyond the request lifecycle.
 - **Plugin providers** — the LLM and TTS backends sit behind thin interfaces with a small registry (`src/lib/llm`, `src/lib/tts`), so swapping or adding a provider doesn't touch route handlers or UI. Audio works out of the box via macOS's built-in `say` — no API key needed for TTS.
