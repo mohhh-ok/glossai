@@ -13,6 +13,9 @@ function client() {
 }
 
 export class AnthropicLlmProvider implements LlmProvider {
+  readonly name = "anthropic";
+  readonly model = MODEL;
+
   async explainText(text: string): Promise<ReadableStream<Uint8Array>> {
     const encoder = new TextEncoder();
 

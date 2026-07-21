@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { SAMPLE_TEXT } from "@/lib/sample-text";
 
@@ -18,10 +19,16 @@ export function InputView({ onSubmit }: InputViewProps) {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="px-6 py-4">
+      <header className="flex items-center justify-between px-6 py-4">
         <span className="text-xl font-bold tracking-tight text-[var(--accent)]">
           glossai
         </span>
+        <Link
+          href="/history"
+          className="text-sm font-medium text-[rgb(var(--gray))] hover:text-[var(--accent)]"
+        >
+          履歴
+        </Link>
       </header>
 
       <main className="mx-auto flex w-full max-w-[720px] flex-1 flex-col justify-center px-6 py-10">

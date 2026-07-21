@@ -14,6 +14,7 @@ glossai is BYOK (bring your own key) and self-hosted — it never proxies your k
 - **Word & phrase lookup** — click any word, or drag-select 2–6 words, to open a popover with meaning, part of speech, IPA, nuance, and etymology.
 - **Example sentences with audio** — every word comes with two contextual example sentences, each with its own speaker button.
 - **AI reading breakdown** — a streamed, sentence-by-sentence explanation of the whole passage, plus key expressions worth learning.
+- **Persistent cache & history** — word lookups and reading breakdowns are cached in a local SQLite database, so looking up the same word or passage again returns instantly instead of re-generating. Every word you've looked up is browsable on the `/history` page — see [Data storage](#data-storage).
 - **BYOK, self-hosted** — bring your own Anthropic and OpenAI API keys; nothing is stored server-side beyond the request lifecycle.
 - **Plugin providers** — the LLM and TTS backends sit behind thin interfaces with a small registry (`src/lib/llm`, `src/lib/tts`), so swapping or adding a provider doesn't touch route handlers or UI. Audio works out of the box via macOS's built-in `say` — no API key needed for TTS.
 
@@ -40,6 +41,7 @@ All configuration is via environment variables (`.env.local`):
 | `GLOSSAI_MODEL` | No | `claude-opus-4-8` (`anthropic`) / `sonnet` (`claude-code`) | Model used for both the explain and word-lookup endpoints. |
 | `GLOSSAI_TTS_PROVIDER` | No | `say` | `say` (macOS's built-in TTS, no API key) or `openai` (`gpt-4o-mini-tts`, needs `OPENAI_API_KEY`). |
 | `GLOSSAI_TTS_VOICE` | No | `Samantha` (`say`) / `alloy` (`openai`) | Voice name for whichever TTS provider is active. For `say`, must be a name `say -v '?'` lists. |
+| `GLOSSAI_DB` | No | `data/glossai.db` | Path to the SQLite cache/history database. See [Data storage](#data-storage). |
 
 ## Providers (plugin architecture)
 
@@ -80,6 +82,14 @@ Notes:
 - This is a personal, local-use setup — each request spawns a `claude` subprocess, so latency is higher than calling the API directly (roughly a couple of seconds of fixed overhead per request on top of generation time).
 - No tools, MCP servers, or session persistence are used; every request is a stateless, single-turn call scoped to just the prompt glossai sends.
 - `GLOSSAI_MODEL` accepts the same values as `claude --model` (aliases like `sonnet`/`opus`/`haiku`, or a full model ID); defaults to `sonnet` for this backend specifically, to keep per-request latency and shared subscription rate limits in check.
+
+## Data storage
+
+Every word/phrase lookup and every reading breakdown is cached server-side in a SQLite database, so repeat lookups of the same word (or re-reading a passage you already asked for a breakdown of) skip generation entirely instead of re-calling the LLM. The cached words are also what powers the `/history` page.
+
+- **Location**: `GLOSSAI_DB` (default `data/glossai.db`, created on first run — the parent directory is created automatically if missing).
+- **Contents**: word/phrase lookup cards (`words` table: surface form, context, the generated JSON, lookup count, timestamps) and reading-breakdown text (`explains` table, keyed by a hash of the source text). No API keys or request metadata beyond which provider/model produced each entry.
+- **Reset**: delete the DB file (and its `-wal`/`-shm` siblings, from WAL mode) — glossai recreates an empty schema on the next request.
 
 ## BYOK
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { tokenize } from "@/lib/tokenize";
 import { GlossCard } from "./GlossCard";
@@ -94,13 +95,21 @@ export function ReaderView({ text, onBack }: ReaderViewProps) {
         <span className="text-xl font-bold tracking-tight text-[var(--accent)]">
           glossai
         </span>
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-sm font-medium text-[rgb(var(--gray))] hover:text-[var(--accent)]"
-        >
-          ← 別のテキスト
-        </button>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/history"
+            className="text-sm font-medium text-[rgb(var(--gray))] hover:text-[var(--accent)]"
+          >
+            履歴
+          </Link>
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-sm font-medium text-[rgb(var(--gray))] hover:text-[var(--accent)]"
+          >
+            ← 別のテキスト
+          </button>
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-[720px] flex-1 px-6 py-10">

@@ -202,6 +202,9 @@ function runClaudeJson(
 }
 
 export class ClaudeCodeProvider implements LlmProvider {
+  readonly name = "claude-code";
+  readonly model = MODEL;
+
   /**
    * Streams the explanation via `--output-format stream-json
    * --include-partial-messages --verbose`. Confirmed empirically that this

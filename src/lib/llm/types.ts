@@ -7,6 +7,17 @@ import type { WordInfo } from "./schema";
  */
 export interface LlmProvider {
   /**
+   * Registry name this provider is resolved under (e.g. "anthropic",
+   * "claude-code"). Recorded alongside cached DB rows for provenance —
+   * callers should read this rather than re-deriving it from env vars, so
+   * the provider/model resolution logic has exactly one source of truth.
+   */
+  readonly name: string;
+
+  /** Model identifier actually in effect (after GLOSSAI_MODEL / per-provider default). */
+  readonly model: string;
+
+  /**
    * Streams a Japanese reading-comprehension explanation of `text`.
    * Returns a stream of raw UTF-8 text chunks (plain text, not JSON/SSE).
    */
