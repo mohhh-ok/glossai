@@ -1,10 +1,39 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+/** Thrown when the `claude` CLI binary cannot be located on PATH. */
+export class ClaudeCliNotFoundError extends Error {
+  constructor() {
+    super(
+      "claude CLIが見つかりません。Claude Codeをインストールしてください。"
+    );
+    this.name = "ClaudeCliNotFoundError";
+  }
+}
+
 /**
- * Maps an error thrown by the Anthropic SDK to a JSON error Response.
- * Always branches on typed exception classes — never on string matching.
+ * Thrown when the `claude` CLI ran but reported failure: either a non-zero
+ * exit with no parseable JSON `result` event, or a parseable `result` event
+ * with `is_error: true` (invalid model, refusal, auth failure, etc).
+ * `message` is the CLI's own human-readable explanation where available.
  */
-export function anthropicErrorResponse(err: unknown): Response {
+export class ClaudeCliError extends Error {
+  constructor(
+    message: string,
+    public readonly exitCode: number | null,
+    public readonly apiErrorStatus: number | null = null
+  ) {
+    super(message);
+    this.name = "ClaudeCliError";
+  }
+}
+
+/**
+ * Maps an error thrown by either LLM provider (Anthropic SDK, or the local
+ * claude-code CLI provider) to a JSON error Response. Always branches on
+ * typed exception classes — never on string matching, except for the one
+ * documented Anthropic SDK quirk below.
+ */
+export function llmErrorResponse(err: unknown): Response {
   if (err instanceof Anthropic.AuthenticationError) {
     return Response.json(
       { error: "ANTHROPIC_API_KEYが未設定です。README参照。" },
@@ -28,6 +57,16 @@ export function anthropicErrorResponse(err: unknown): Response {
       { error: "ANTHROPIC_API_KEYが未設定です。READMEのSetupを参照してください。" },
       { status: 401 }
     );
+  }
+  if (err instanceof ClaudeCliNotFoundError) {
+    return Response.json({ error: err.message }, { status: 500 });
+  }
+  if (err instanceof ClaudeCliError) {
+    const status =
+      err.apiErrorStatus !== null && err.apiErrorStatus >= 400
+        ? err.apiErrorStatus
+        : 500;
+    return Response.json({ error: err.message }, { status });
   }
   console.error(err);
   return Response.json(

@@ -34,10 +34,32 @@ All configuration is via environment variables (`.env.local`):
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | Yes | — | Used for reading explanations and word/phrase lookups. |
+| `ANTHROPIC_API_KEY` | Yes, unless `GLOSSAI_LLM_PROVIDER=claude-code` | — | Used for reading explanations and word/phrase lookups. |
 | `OPENAI_API_KEY` | Yes (for audio) | — | Used for text-to-speech playback. Without it, the app still works but speaker buttons return an error. |
-| `GLOSSAI_MODEL` | No | `claude-opus-4-8` | Anthropic model used for both the explain and word-lookup endpoints. |
+| `GLOSSAI_LLM_PROVIDER` | No | `anthropic` | `anthropic` or `claude-code` — see [Use your Claude subscription](#use-your-claude-subscription-claude-code-backend) below. |
+| `GLOSSAI_MODEL` | No | `claude-opus-4-8` (`anthropic`) / `sonnet` (`claude-code`) | Model used for both the explain and word-lookup endpoints. |
 | `GLOSSAI_TTS_VOICE` | No | `alloy` | OpenAI TTS voice (`gpt-4o-mini-tts`). |
+
+## Use your Claude subscription (Claude Code backend)
+
+If you have a Claude subscription (Pro/Max) and don't want to pay for API credits separately, set:
+
+```bash
+GLOSSAI_LLM_PROVIDER=claude-code
+```
+
+This routes the explain and word-lookup endpoints through your local [Claude Code](https://claude.com/product/claude-code) CLI (`claude -p`, headless/print mode) instead of the Anthropic API. `ANTHROPIC_API_KEY` is not needed for this backend — TTS still requires `OPENAI_API_KEY` as usual.
+
+Requirements:
+
+- The `claude` CLI must be installed and on `PATH`.
+- You must already be logged in (`claude auth login` — subscription OAuth, not an API key).
+
+Notes:
+
+- This is a personal, local-use setup — each request spawns a `claude` subprocess, so latency is higher than calling the API directly (roughly a couple of seconds of fixed overhead per request on top of generation time).
+- No tools, MCP servers, or session persistence are used; every request is a stateless, single-turn call scoped to just the prompt glossai sends.
+- `GLOSSAI_MODEL` accepts the same values as `claude --model` (aliases like `sonnet`/`opus`/`haiku`, or a full model ID); defaults to `sonnet` for this backend specifically, to keep per-request latency and shared subscription rate limits in check.
 
 ## BYOK
 

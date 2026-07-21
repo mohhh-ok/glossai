@@ -1,5 +1,5 @@
-import { AnthropicLlmProvider } from "@/lib/llm/anthropic";
-import { anthropicErrorResponse } from "@/lib/llm/errors";
+import { getLlmProvider } from "@/lib/llm";
+import { llmErrorResponse } from "@/lib/llm/errors";
 
 export const runtime = "nodejs";
 
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "text は必須です。" }, { status: 400 });
   }
 
-  const provider = new AnthropicLlmProvider();
+  const provider = getLlmProvider();
 
   try {
     const stream = await provider.explainText(text);
@@ -24,6 +24,6 @@ export async function POST(req: Request) {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   } catch (err) {
-    return anthropicErrorResponse(err);
+    return llmErrorResponse(err);
   }
 }
