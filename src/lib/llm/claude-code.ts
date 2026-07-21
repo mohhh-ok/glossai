@@ -359,7 +359,7 @@ export class ClaudeCodeProvider implements LlmProvider {
    * failure only — a hard CLI/API-level failure (auth, invalid model, etc)
    * propagates immediately without retrying.
    */
-  async wordInfo(word: string, context: string): Promise<WordInfo> {
+  async wordInfo(word: string): Promise<WordInfo> {
     const args = [
       ...baseArgs(WORD_SYSTEM_PROMPT, "low"),
       "--json-schema",
@@ -367,7 +367,7 @@ export class ClaudeCodeProvider implements LlmProvider {
       "--output-format",
       "json",
     ];
-    const stdinText = `単語/フレーズ: ${word}\n文脈: ${context}`;
+    const stdinText = `単語/フレーズ: ${word}`;
 
     let lastError: unknown;
     for (let attempt = 0; attempt < 2; attempt++) {

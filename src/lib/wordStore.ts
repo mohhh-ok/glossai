@@ -49,7 +49,6 @@ export function touchWord(id: number, now: string): void {
 interface WordWriteParams {
   key: string;
   surface: string;
-  context: string;
   info: WordInfo;
   provider: string;
   model: string;
@@ -60,6 +59,11 @@ interface WordWriteParams {
  * concurrent first-time lookups of the same key (e.g. two tabs) can't crash
  * on the UNIQUE(key) constraint — the loser's generation is simply not
  * persisted, but its result was already returned to its own caller.
+ *
+ * `context` is always written as NULL: generation no longer takes a source
+ * sentence (see wordInfo's doc comment in src/lib/llm/types.ts), so there is
+ * nothing meaningful to store there for new/updated rows. The column itself
+ * stays in the schema only to keep pre-existing rows readable.
  */
 export function insertWord(params: WordWriteParams): void {
   const now = new Date().toISOString();
@@ -68,12 +72,11 @@ export function insertWord(params: WordWriteParams): void {
       `INSERT OR IGNORE INTO words
          (key, surface, context, info, provider, model, lookup_count, created_at, last_seen_at)
        VALUES
-         (@key, @surface, @context, @info, @provider, @model, 1, @now, @now)`
+         (@key, @surface, NULL, @info, @provider, @model, 1, @now, @now)`
     )
     .run({
       key: params.key,
       surface: params.surface,
-      context: params.context,
       info: JSON.stringify(params.info),
       provider: params.provider,
       model: params.model,
@@ -81,20 +84,20 @@ export function insertWord(params: WordWriteParams): void {
     });
 }
 
-/** Overwrites an existing row for a `force: true` regenerate. */
+/** Overwrites an existing row for a `force: true` regenerate. `context` is
+ * always reset to NULL — see insertWord's doc comment. */
 export function updateWord(id: number, params: WordWriteParams): void {
   const now = new Date().toISOString();
   getDb()
     .prepare(
       `UPDATE words
-       SET surface = @surface, context = @context, info = @info,
+       SET surface = @surface, context = NULL, info = @info,
            provider = @provider, model = @model, last_seen_at = @now
        WHERE id = @id`
     )
     .run({
       id,
       surface: params.surface,
-      context: params.context,
       info: JSON.stringify(params.info),
       provider: params.provider,
       model: params.model,

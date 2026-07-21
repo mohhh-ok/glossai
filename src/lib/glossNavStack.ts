@@ -2,16 +2,15 @@ import type { WordLookupResult } from "./wordCache";
 
 /**
  * One entry in a GlossCard's internal navigation stack: the word/phrase
- * looked up, the context it was looked up under, and whatever's been loaded
- * for it so far. `info`/`error` start out `null` (a genuine cache miss) or
- * already populated (a cache hit captured at push time by the caller) — the
- * component's fetch effect is what fills in `info`/`error` afterwards via
- * the "loaded"/"failed" actions below.
+ * looked up, and whatever's been loaded for it so far. `info`/`error` start
+ * out `null` (a genuine cache miss) or already populated (a cache hit
+ * captured at push time by the caller) — the component's fetch effect is
+ * what fills in `info`/`error` afterwards via the "loaded"/"failed" actions
+ * below.
  */
 export interface GlossNavEntry {
   id: number;
   word: string;
-  context: string;
   info: WordLookupResult | null;
   error: string | null;
 }
@@ -22,9 +21,9 @@ export interface GlossNavEntry {
  * unit test without needing to fake/reset module-level counter state.
  */
 export type GlossNavAction =
-  | { type: "push"; id: number; word: string; context: string; cached: WordLookupResult | null }
+  | { type: "push"; id: number; word: string; cached: WordLookupResult | null }
   | { type: "pop" }
-  | { type: "reset"; id: number; word: string; context: string; cached: WordLookupResult | null }
+  | { type: "reset"; id: number; word: string; cached: WordLookupResult | null }
   | { type: "loaded"; id: number; info: WordLookupResult }
   | { type: "failed"; id: number; error: string };
 
@@ -48,7 +47,6 @@ export function glossNavReducer(
         {
           id: action.id,
           word: action.word,
-          context: action.context,
           info: action.cached,
           error: null,
         },
@@ -63,7 +61,6 @@ export function glossNavReducer(
         {
           id: action.id,
           word: action.word,
-          context: action.context,
           info: action.cached,
           error: null,
         },

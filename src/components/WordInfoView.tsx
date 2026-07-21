@@ -8,24 +8,15 @@ import { SegmentedText } from "./SegmentedText";
 interface WordInfoViewProps {
   info: WordInfo;
   /**
-   * Context `info.word` was itself looked up under. Used as the fetch
-   * context when a click inside meaningJa/nuanceJa/etymologyJa (prose
-   * *about* info.word, not about the clicked run) triggers a lookup — only
-   * meaningful when `onLookup` is also passed.
-   */
-  context?: string;
-  /**
    * When set, clicking an embedded English word/phrase (an example
    * sentence, or an English run inside meaningJa/nuanceJa/etymologyJa)
-   * doesn't open its own GlossCard portal — it calls back with
-   * (phrase, context) so the caller (GlossCard) can navigate within the same
-   * card instead. Examples pass their own sentence as context; meaning/
-   * nuance/etymology runs pass `context` (info.word's own lookup context).
-   * Omitted → GlossableText's default self-managed portal behavior, which
-   * is what HistoryView's word-tab expansion (WordInfoView shown outside
-   * any GlossCard) relies on.
+   * doesn't open its own GlossCard portal — it calls back with the
+   * looked-up phrase so the caller (GlossCard) can navigate within the same
+   * card instead. Omitted → GlossableText's default self-managed portal
+   * behavior, which is what HistoryView's word-tab expansion (WordInfoView
+   * shown outside any GlossCard) relies on.
    */
-  onLookup?: (phrase: string, context: string) => void;
+  onLookup?: (phrase: string) => void;
   /** Rendered as a "←" button to the left of the headword; omitted when
    * there's nowhere to go back to (HistoryView, or GlossCard showing its
    * first/only entry). */
@@ -38,17 +29,8 @@ interface WordInfoViewProps {
  * Shared between GlossCard's popover and the expanded row on /history so the
  * two surfaces can't drift out of sync.
  */
-export function WordInfoView({ info, context, onLookup, onBack }: WordInfoViewProps) {
+export function WordInfoView({ info, onLookup, onBack }: WordInfoViewProps) {
   const { play, playingText, error: ttsError } = useTts();
-
-  // meaningJa/nuanceJa/etymologyJa are *about* info.word, so a lookup
-  // triggered from inside them should use info.word's own context, not the
-  // clicked run's text — hence binding `context` here rather than letting
-  // SegmentedText/GlossableText supply their own text as context.
-  const fieldLookup =
-    onLookup && context !== undefined
-      ? (phrase: string) => onLookup(phrase, context)
-      : undefined;
 
   return (
     <div>
@@ -74,15 +56,15 @@ export function WordInfoView({ info, context, onLookup, onBack }: WordInfoViewPr
       <p className="mt-1 text-xs font-bold text-[rgb(var(--gray))]">{info.partOfSpeech}</p>
 
       <p className="mt-2 text-[15px]">
-        <SegmentedText text={info.meaningJa} onLookup={fieldLookup} />
+        <SegmentedText text={info.meaningJa} onLookup={onLookup} />
       </p>
       <p className="mt-2 text-sm leading-relaxed text-[rgb(var(--gray-dark))]">
-        <SegmentedText text={info.nuanceJa} onLookup={fieldLookup} />
+        <SegmentedText text={info.nuanceJa} onLookup={onLookup} />
       </p>
 
       <p className="mt-4 text-xs font-bold text-[rgb(var(--gray))]">語源</p>
       <p className="mt-1 text-sm leading-relaxed">
-        <SegmentedText text={info.etymologyJa} onLookup={fieldLookup} />
+        <SegmentedText text={info.etymologyJa} onLookup={onLookup} />
       </p>
 
       <p className="mt-4 text-xs font-bold text-[rgb(var(--gray))]">例文</p>
@@ -99,7 +81,7 @@ export function WordInfoView({ info, context, onLookup, onBack }: WordInfoViewPr
                 text={ex.en}
                 variant="inline"
                 className="text-sm leading-snug"
-                onLookup={onLookup ? (phrase) => onLookup(phrase, ex.en) : undefined}
+                onLookup={onLookup}
               />
             </div>
             <p className="pl-6 text-sm text-[rgb(var(--gray))]">{ex.ja}</p>

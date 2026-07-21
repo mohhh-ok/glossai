@@ -19,18 +19,24 @@ export async function POST(req: Request) {
     return Response.json({ error: "リクエストの形式が不正です。" }, { status: 400 });
   }
 
-  const { word, context, force } =
-    (body as { word?: unknown; context?: unknown; force?: unknown } | null) ?? {};
+  // `context` may still arrive on the request body from older clients or
+  // cached JS bundles — accepted for backward compatibility, but never read.
+  // Word lookups are generated context-free (see wordInfo's doc comment in
+  // src/lib/llm/types.ts): a cached WordInfo row is shared across every
+  // sentence the word ever appears in, so basing generation on whichever
+  // sentence happened to trigger it would leak that sentence's specifics
+  // into explanations served later for unrelated sentences.
+  const { word, force } =
+    (body as { word?: unknown; force?: unknown } | null) ?? {};
   if (typeof word !== "string" || word.trim().length === 0) {
     return Response.json({ error: "word は必須です。" }, { status: 400 });
   }
-  const contextText = typeof context === "string" ? context : "";
   const forceRegenerate = force === true;
   const key = normalizeWordKey(word);
 
   // Cache hit: skip generation entirely unless the caller explicitly asked
-  // to regenerate (e.g. the context changed enough that the cached nuance
-  // is stale).
+  // to regenerate (e.g. the cached entry predates a prompt change and the
+  // user wants a fresh explanation under the current prompt).
   if (!forceRegenerate) {
     const existing = findWordByKey(key);
     if (existing) {
@@ -42,13 +48,12 @@ export async function POST(req: Request) {
 
   try {
     const provider = getLlmProvider();
-    const info = await provider.wordInfo(word, contextText);
+    const info = await provider.wordInfo(word);
 
     const existing = forceRegenerate ? findWordByKey(key) : undefined;
     const writeParams = {
       key,
       surface: word,
-      context: contextText,
       info,
       provider: provider.name,
       model: provider.model,

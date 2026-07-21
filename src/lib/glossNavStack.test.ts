@@ -18,23 +18,21 @@ describe("glossNavReducer", () => {
       type: "reset",
       id: 0,
       word: "case",
-      context: "bolster the case",
       cached: null,
     });
     expect(stack).toEqual([
-      { id: 0, word: "case", context: "bolster the case", info: null, error: null },
+      { id: 0, word: "case", info: null, error: null },
     ]);
   });
 
   it("push は末尾に新しいエントリを積み、cache hit の info をそのまま保持する", () => {
     const initial: GlossNavEntry[] = [
-      { id: 0, word: "case", context: "bolster the case", info: null, error: null },
+      { id: 0, word: "case", info: null, error: null },
     ];
     const stack = glossNavReducer(initial, {
       type: "push",
       id: 1,
       word: "bolster",
-      context: "bolster the case",
       cached: cachedInfo,
     });
     expect(stack).toHaveLength(2);
@@ -42,7 +40,6 @@ describe("glossNavReducer", () => {
     expect(stack[1]).toEqual({
       id: 1,
       word: "bolster",
-      context: "bolster the case",
       info: cachedInfo,
       error: null,
     });
@@ -50,8 +47,8 @@ describe("glossNavReducer", () => {
 
   it("pop は末尾のエントリを取り除き、深さ1では何もしない", () => {
     const depth2: GlossNavEntry[] = [
-      { id: 0, word: "case", context: "ctx", info: null, error: null },
-      { id: 1, word: "bolster", context: "ctx", info: cachedInfo, error: null },
+      { id: 0, word: "case", info: null, error: null },
+      { id: 1, word: "bolster", info: cachedInfo, error: null },
     ];
     const popped = glossNavReducer(depth2, { type: "pop" });
     expect(popped).toEqual([depth2[0]]);

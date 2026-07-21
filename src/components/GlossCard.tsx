@@ -13,7 +13,6 @@ import { WordInfoView } from "./WordInfoView";
 
 interface GlossCardProps {
   word: string;
-  context: string;
   anchor: { x: number; y: number };
   onClose: () => void;
 }
@@ -35,7 +34,7 @@ const NARROW_QUERY = "(max-width: 639px)";
  * On narrow viewports (<640px) this renders as a bottom sheet instead of an
  * anchored popover — `anchor` is then unused.
  */
-export function GlossCard({ word, context, anchor, onClose }: GlossCardProps) {
+export function GlossCard({ word, anchor, onClose }: GlossCardProps) {
   // Stable per-entry ids let the fetch effect below and handleRegenerate
   // target "the entry that was current when the request started" even if
   // the user has since pushed/popped past it. Starts at 0 (the initial
@@ -47,8 +46,7 @@ export function GlossCard({ word, context, anchor, onClose }: GlossCardProps) {
       type: "reset",
       id: 0,
       word,
-      context,
-      cached: getCachedWordInfo(cacheKey(word, context)) ?? null,
+      cached: getCachedWordInfo(cacheKey(word)) ?? null,
     })
   );
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -70,7 +68,7 @@ export function GlossCard({ word, context, anchor, onClose }: GlossCardProps) {
     fetch("/api/word", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ word: top.word, context: top.context }),
+      body: JSON.stringify({ word: top.word }),
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -83,7 +81,7 @@ export function GlossCard({ word, context, anchor, onClose }: GlossCardProps) {
       })
       .then((data) => {
         if (cancelled) return;
-        setCachedWordInfo(cacheKey(top.word, top.context), data);
+        setCachedWordInfo(cacheKey(top.word), data);
         dispatch({ type: "loaded", id: top.id, info: data });
       })
       .catch((e: unknown) => {
@@ -104,14 +102,13 @@ export function GlossCard({ word, context, anchor, onClose }: GlossCardProps) {
   // Pushes a new stack entry for a word/phrase clicked inside the card's own
   // content (WordInfoView's onLookup) — a cache hit resolves synchronously
   // via the reducer, a miss is picked up by the fetch effect above.
-  function handleLookup(phrase: string, lookupContext: string) {
+  function handleLookup(phrase: string) {
     idRef.current += 1;
     dispatch({
       type: "push",
       id: idRef.current,
       word: phrase,
-      context: lookupContext,
-      cached: getCachedWordInfo(cacheKey(phrase, lookupContext)) ?? null,
+      cached: getCachedWordInfo(cacheKey(phrase)) ?? null,
     });
   }
 
@@ -125,7 +122,7 @@ export function GlossCard({ word, context, anchor, onClose }: GlossCardProps) {
       const res = await fetch("/api/word", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ word: top.word, context: top.context, force: true }),
+        body: JSON.stringify({ word: top.word, force: true }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as
@@ -134,7 +131,7 @@ export function GlossCard({ word, context, anchor, onClose }: GlossCardProps) {
         throw new Error(data?.error ?? "再生成に失敗しました。");
       }
       const data = (await res.json()) as WordLookupResult;
-      setCachedWordInfo(cacheKey(top.word, top.context), data);
+      setCachedWordInfo(cacheKey(top.word), data);
       dispatch({ type: "loaded", id: top.id, info: data });
     } catch (e) {
       dispatch({
@@ -238,7 +235,6 @@ export function GlossCard({ word, context, anchor, onClose }: GlossCardProps) {
           <div className="pr-4">
             <WordInfoView
               info={top.info}
-              context={top.context}
               onLookup={handleLookup}
               onBack={stack.length > 1 ? handleBack : undefined}
             />

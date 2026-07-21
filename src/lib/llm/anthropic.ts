@@ -57,7 +57,7 @@ export class AnthropicLlmProvider implements LlmProvider {
     });
   }
 
-  async wordInfo(word: string, context: string): Promise<WordInfo> {
+  async wordInfo(word: string): Promise<WordInfo> {
     const response = await client().messages.parse({
       model: MODEL,
       max_tokens: 4000,
@@ -67,9 +67,7 @@ export class AnthropicLlmProvider implements LlmProvider {
         format: zodOutputFormat(WordInfoSchema),
       },
       system: WORD_SYSTEM_PROMPT,
-      messages: [
-        { role: "user", content: `単語/フレーズ: ${word}\n文脈: ${context}` },
-      ],
+      messages: [{ role: "user", content: `単語/フレーズ: ${word}` }],
     });
 
     if (!response.parsed_output) {

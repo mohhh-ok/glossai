@@ -8,7 +8,7 @@ import { GlossCard } from "./GlossCard";
 export type GlossableTextVariant = "reader" | "quote" | "inline";
 
 interface GlossableTextProps {
-  /** The English passage to render. Also used as GlossCard's lookup context. */
+  /** The English passage to render. */
   text: string;
   /**
    * Visual preset. "reader" is the large serif reading layout used by
@@ -141,7 +141,6 @@ export function GlossableText({
             // cache-hit state initializer always runs against the right key.
             key={`${gloss.phrase}-${gloss.anchor.x}-${gloss.anchor.y}`}
             word={gloss.phrase}
-            context={text}
             anchor={gloss.anchor}
             onClose={() => setGloss(null)}
           />,

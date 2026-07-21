@@ -23,6 +23,12 @@ export interface LlmProvider {
    */
   explainText(text: string): Promise<ReadableStream<Uint8Array>>;
 
-  /** Looks up a word or short phrase within its surrounding context. */
-  wordInfo(word: string, context: string): Promise<WordInfo>;
+  /**
+   * Looks up a word or short phrase. Context-free by design: WordInfo rows
+   * are cached and shared across every sentence a word ever appears in (see
+   * wordStore.ts's key = normalizeWordKey(surface)), so a generation that
+   * leaned on the originating sentence would leak that sentence's specifics
+   * into an explanation later served for an unrelated one.
+   */
+  wordInfo(word: string): Promise<WordInfo>;
 }
