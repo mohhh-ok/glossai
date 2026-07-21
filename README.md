@@ -13,6 +13,7 @@ glossai is BYOK (bring your own key) and self-hosted — it never proxies your k
 - **Paste-and-read** — drop in any English text, no accounts, no setup beyond API keys.
 - **Word & phrase lookup** — click any word, or drag-select 2–6 words, to open a popover with meaning, part of speech, IPA, nuance, and etymology.
 - **Example sentences with audio** — every word comes with two contextual example sentences, each with its own speaker button.
+- **Full-passage read-aloud** — a 読み上げ button next to AI解説 (and on each history entry's quoted original text) synthesizes and plays the whole passage, with a play/stop toggle.
 - **AI reading breakdown** — a streamed, sentence-by-sentence explanation of the whole passage, plus key expressions worth learning.
 - **Clickable English inside explanations** — English words/phrases quoted inside the AI reading breakdown are clickable too, opening the same GlossCard as the passage above it.
 - **Persistent cache & history** — word lookups and reading breakdowns are cached in a local SQLite database, so looking up the same word or passage again returns instantly instead of re-generating. Both are browsable on the `/history` page (単語 / 文章 tabs) — expand a passage to reread its full breakdown, or send it straight back into the reader. See [Data storage](#data-storage).

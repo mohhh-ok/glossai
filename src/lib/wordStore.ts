@@ -130,3 +130,47 @@ export function deleteWord(id: number): boolean {
   const result = getDb().prepare("DELETE FROM words WHERE id = ?").run(id);
   return result.changes > 0;
 }
+
+/** Fields of a WordHistoryEntry the client can hand back for an undo — i.e.
+ * everything /api/history's GET response actually exposes. */
+export interface WordRestoreParams {
+  surface: string;
+  info: WordInfo;
+  lookup_count: number;
+  created_at: string;
+  last_seen_at: string;
+}
+
+/**
+ * Re-inserts a word entry the client optimistically deleted and then asked
+ * to undo. `key` is always recomputed from `surface` via normalizeWordKey
+ * rather than trusted from the client, so restore can't ever derive the key
+ * differently than every other write path does.
+ *
+ * `context`/`provider`/`model` come back NULL: /api/history's GET response
+ * never sends them to the client (see WordHistoryEntry), so there is
+ * nothing to restore them from — the alternative would be silently keeping
+ * a stale value, which is worse than an honest NULL.
+ *
+ * Uses INSERT OR REPLACE on the UNIQUE(key) constraint: if a fresh lookup
+ * for the same word happened after the delete but before the undo, that
+ * newer row is replaced by the restored one, per spec.
+ */
+export function restoreWord(params: WordRestoreParams): void {
+  const key = normalizeWordKey(params.surface);
+  getDb()
+    .prepare(
+      `INSERT OR REPLACE INTO words
+         (key, surface, context, info, provider, model, lookup_count, created_at, last_seen_at)
+       VALUES
+         (@key, @surface, NULL, @info, NULL, NULL, @lookup_count, @created_at, @last_seen_at)`
+    )
+    .run({
+      key,
+      surface: params.surface,
+      info: JSON.stringify(params.info),
+      lookup_count: params.lookup_count,
+      created_at: params.created_at,
+      last_seen_at: params.last_seen_at,
+    });
+}

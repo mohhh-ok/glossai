@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { ExplainBody } from "./ExplainBody";
 import { GlossableText } from "./GlossableText";
+import { ReadAloudButton } from "./ReadAloudButton";
 
 interface ReaderViewProps {
   text: string;
@@ -83,7 +84,7 @@ export function ReaderView({ text, onBack }: ReaderViewProps) {
       <main className="mx-auto w-full max-w-[720px] flex-1 px-6 py-10">
         <GlossableText text={text} variant="reader" />
 
-        <div className="mt-10 flex justify-center">
+        <div className="mt-10 flex justify-center gap-3">
           <button
             type="button"
             onClick={handleExplain}
@@ -92,6 +93,7 @@ export function ReaderView({ text, onBack }: ReaderViewProps) {
           >
             {isExplaining ? "解説を生成中…" : "AI解説"}
           </button>
+          <ReadAloudButton text={text} />
         </div>
 
         {hasExplained && (

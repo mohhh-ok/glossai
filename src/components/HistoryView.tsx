@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { WordInfo } from "@/lib/llm/schema";
 import { PENDING_TEXT_KEY } from "@/lib/pendingText";
 import { ExplainBody } from "./ExplainBody";
 import { GlossableText } from "./GlossableText";
+import { ReadAloudButton } from "./ReadAloudButton";
 import { WordInfoView } from "./WordInfoView";
 
 interface WordEntry {
@@ -36,6 +37,14 @@ interface HistoryResponse {
 type Tab = "word" | "explain";
 
 const EXCERPT_LENGTH = 80;
+const TOAST_DURATION_MS = 5000;
+
+/** Toast shown after an optimistic delete: a message plus an optional undo
+ * action. `onUndo` is omitted for a terminal error notice (nothing to undo). */
+interface DeleteToastState {
+  message: string;
+  onUndo?: () => void;
+}
 
 export function HistoryView() {
   const router = useRouter();
@@ -47,6 +56,28 @@ export function HistoryView() {
   const [expandedExplainIds, setExpandedExplainIds] = useState<Set<number>>(
     new Set()
   );
+  const [toast, setToast] = useState<DeleteToastState | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Only the latest delete's toast is ever shown — showToast always clears
+  // whatever timer/toast came before it, rather than queuing.
+  function showToast(message: string, onUndo?: () => void) {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ message, onUndo });
+    toastTimeoutRef.current = setTimeout(() => setToast(null), TOAST_DURATION_MS);
+  }
+
+  function dismissToast() {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = null;
+    setToast(null);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,35 +126,68 @@ export function HistoryView() {
   }
 
   async function handleDeleteWord(id: number) {
-    if (!data) return;
-    const prevData = data;
+    const removed = data?.words.find((entry) => entry.id === id);
+    if (!removed) return;
     // Optimistic removal — a single row, no confirm dialog per spec. Rolled
-    // back only if the DELETE itself fails.
-    setData({ ...data, words: data.words.filter((entry) => entry.id !== id) });
+    // back only if the DELETE itself fails; otherwise a toast offers undo,
+    // which restores from this captured row rather than re-fetching.
+    setData(
+      (prev) =>
+        prev && { ...prev, words: prev.words.filter((entry) => entry.id !== id) }
+    );
     try {
       const res = await fetch(`/api/history?type=word&id=${id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error();
+      showToast("削除しました", async () => {
+        const ok = await restoreWordEntry(removed);
+        if (ok) {
+          setData(
+            (prev) => prev && { ...prev, words: insertWordSorted(prev.words, removed) }
+          );
+        } else {
+          showToast("元に戻せませんでした");
+        }
+      });
     } catch {
-      setData(prevData);
+      setData(
+        (prev) => prev && { ...prev, words: insertWordSorted(prev.words, removed) }
+      );
     }
   }
 
   async function handleDeleteExplain(id: number) {
-    if (!data) return;
-    const prevData = data;
-    setData({
-      ...data,
-      explains: data.explains.filter((entry) => entry.id !== id),
-    });
+    const removed = data?.explains.find((entry) => entry.id === id);
+    if (!removed) return;
+    setData(
+      (prev) =>
+        prev && {
+          ...prev,
+          explains: prev.explains.filter((entry) => entry.id !== id),
+        }
+    );
     try {
       const res = await fetch(`/api/history?type=explain&id=${id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error();
+      showToast("削除しました", async () => {
+        const ok = await restoreExplainEntry(removed);
+        if (ok) {
+          setData(
+            (prev) =>
+              prev && { ...prev, explains: insertExplainSorted(prev.explains, removed) }
+          );
+        } else {
+          showToast("元に戻せませんでした");
+        }
+      });
     } catch {
-      setData(prevData);
+      setData(
+        (prev) =>
+          prev && { ...prev, explains: insertExplainSorted(prev.explains, removed) }
+      );
     }
   }
 
@@ -219,6 +283,20 @@ export function HistoryView() {
           </>
         )}
       </main>
+
+      {toast && (
+        <DeleteToast
+          message={toast.message}
+          onUndo={
+            toast.onUndo
+              ? () => {
+                  toast.onUndo?.();
+                  dismissToast();
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }
@@ -348,6 +426,7 @@ function ExplainRow({
       {expanded && (
         <div className="gloss-card mt-3 rounded-md bg-white p-4">
           <GlossableText text={entry.text} variant="quote" />
+          <ReadAloudButton text={entry.text} className="mt-3" />
           <ExplainBody text={entry.body} className="mt-4" />
           <div className="mt-4 flex justify-end">
             <button
@@ -361,6 +440,36 @@ function ExplainRow({
         </div>
       )}
     </li>
+  );
+}
+
+/** Bottom-of-screen confirmation shown after an optimistic history delete.
+ * Matches the app's existing card tone (white + gloss-card's shadow/accent
+ * border) with the undo action styled as an accent-colored link. Auto-
+ * dismissed by the caller after TOAST_DURATION_MS; `onUndo` is omitted for a
+ * terminal notice (e.g. "restore failed") that has nothing to undo. */
+function DeleteToast({
+  message,
+  onUndo,
+}: {
+  message: string;
+  onUndo?: () => void;
+}) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+      <div className="gloss-card pointer-events-auto flex items-center gap-4 rounded-md bg-white px-4 py-3">
+        <span className="text-sm text-[rgb(var(--gray-dark))]">{message}</span>
+        {onUndo && (
+          <button
+            type="button"
+            onClick={onUndo}
+            className="text-sm font-bold text-[var(--accent)] hover:text-[var(--accent-dark)] hover:underline"
+          >
+            元に戻す
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -383,4 +492,54 @@ function excerptOf(text: string, max: number): string {
 function formatMonthDay(iso: string): string {
   const d = new Date(iso);
   return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/** Posts a previously-deleted word row to /api/history/restore. Returns
+ * whether the restore succeeded; never throws (a network failure is just
+ * another "not ok"). */
+async function restoreWordEntry(entry: WordEntry): Promise<boolean> {
+  try {
+    const res = await fetch("/api/history/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "word", entry }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Same as restoreWordEntry, for a deleted explain row. */
+async function restoreExplainEntry(entry: ExplainEntry): Promise<boolean> {
+  try {
+    const res = await fetch("/api/history/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "explain", entry }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Re-inserts a restored word row at its original sort position — matching
+ * /api/history's ORDER BY last_seen_at DESC, which restore preserves, this
+ * reproduces the same order as a full refetch would, without one. */
+function insertWordSorted(words: WordEntry[], entry: WordEntry): WordEntry[] {
+  const next = [...words.filter((w) => w.id !== entry.id), entry];
+  next.sort((a, b) => b.last_seen_at.localeCompare(a.last_seen_at));
+  return next;
+}
+
+/** Same as insertWordSorted, matching /api/history's explains
+ * ORDER BY created_at DESC. */
+function insertExplainSorted(
+  explains: ExplainEntry[],
+  entry: ExplainEntry
+): ExplainEntry[] {
+  const next = [...explains.filter((e) => e.id !== entry.id), entry];
+  next.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return next;
 }

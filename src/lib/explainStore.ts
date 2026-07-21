@@ -51,6 +51,37 @@ export function deleteExplain(id: number): boolean {
   return result.changes > 0;
 }
 
+/** Fields of an ExplainHistoryEntry the client can hand back for an undo —
+ * i.e. everything /api/history's GET response actually exposes. */
+export interface ExplainRestoreParams {
+  text: string;
+  body: string;
+  provider: string | null;
+  model: string | null;
+  created_at: string;
+}
+
+/**
+ * Re-inserts an explain entry the client optimistically deleted and then
+ * asked to undo. `text_hash` is always recomputed from `text` via
+ * hashExplainText rather than trusted from the client (the client never even
+ * has it — /api/history's GET response omits it), so restore derives the
+ * hash the same way every other write path does.
+ *
+ * Uses INSERT OR REPLACE on the UNIQUE(text_hash) constraint: if the same
+ * text was explained again after the delete but before the undo, that newer
+ * row is replaced by the restored one, per spec.
+ */
+export function restoreExplain(params: ExplainRestoreParams): void {
+  const hash = hashExplainText(params.text);
+  getDb()
+    .prepare(
+      `INSERT OR REPLACE INTO explains (text_hash, text, body, provider, model, created_at)
+       VALUES (@hash, @text, @body, @provider, @model, @created_at)`
+    )
+    .run({ hash, ...params });
+}
+
 /**
  * Persists a completed explanation. Uses INSERT OR IGNORE for the same
  * reason as wordStore.insertWord: two concurrent first-time requests for the
