@@ -98,14 +98,20 @@ function spawnClaude(args: string[], stdinText: string): ChildProcessWithoutNull
 }
 
 /** Shape of the `result` event/line common to both `json` and `stream-json` output. */
-interface ClaudeResultEvent {
+export interface ClaudeResultEvent {
   type: "result";
   subtype: string;
   is_error: boolean;
   api_error_status: number | null;
-  result: string;
+  result: string | null;
   structured_output?: unknown;
+  /** Populated on failures like error_max_structured_output_retries; `result` is null then. */
+  errors?: unknown[];
 }
+
+/** The CLI gave up after N structured-output validation failures (--json-schema). */
+export const SUBTYPE_STRUCTURED_OUTPUT_FAILED =
+  "error_max_structured_output_retries";
 
 function isResultEvent(obj: unknown): obj is ClaudeResultEvent {
   return (
@@ -116,14 +122,21 @@ function isResultEvent(obj: unknown): obj is ClaudeResultEvent {
 }
 
 /** Builds a ClaudeCliError from a parsed `result` event that reported failure. */
-function errorFromResultEvent(
+export function errorFromResultEvent(
   result: ClaudeResultEvent,
   exitCode: number | null
 ): ClaudeCliError {
+  // 失敗時は `result` がnullで、実因が `errors` 配列にだけ入っていることがある
+  // (実測: error_max_structured_output_retries)。汎用文言に落とす前に必ず拾う。
+  const errorsText = Array.isArray(result.errors)
+    ? result.errors.filter((e) => typeof e === "string").join(" / ")
+    : "";
   const rawMessage =
     typeof result.result === "string" && result.result.trim().length > 0
       ? result.result
-      : `claude CLIが終了コード${exitCode}で失敗しました。`;
+      : errorsText.length > 0
+        ? `claude CLIがエラーを返しました(${result.subtype}): ${errorsText}`
+        : `claude CLIが終了コード${exitCode}で失敗しました。`;
   // Not empirically confirmed against a real logged-out CLI (that would
   // require signing this machine's own Claude Code session out mid-task).
   // This is a best-effort heuristic layered on top of the raw CLI message,
@@ -136,7 +149,12 @@ function errorFromResultEvent(
   const message = looksLikeAuthFailure
     ? "Claude Codeにログインしていません。ターミナルで `claude auth login` を実行してください。"
     : rawMessage;
-  return new ClaudeCliError(message, exitCode, result.api_error_status);
+  return new ClaudeCliError(
+    message,
+    exitCode,
+    result.api_error_status,
+    result.subtype
+  );
 }
 
 /** Runs `claude` to completion and returns its parsed `result` event (used by wordInfo). */
@@ -353,7 +371,22 @@ export class ClaudeCodeProvider implements LlmProvider {
 
     let lastError: unknown;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const resultEvent = await runClaudeJson(args, stdinText);
+      let resultEvent: ClaudeResultEvent;
+      try {
+        resultEvent = await runClaudeJson(args, stdinText);
+      } catch (err) {
+        // モデルがスキーマ通りの構造化出力を5回連続で出せずCLIが諦めるケースが
+        // 確率的に起きる(実測: プレースホルダ "$PARAMETER_NAME" をフィールド名に
+        // 書いてしまう事故)。この失敗に限り、--json-schemaを使わない素のJSON生成
+        // にフォールバックする。それ以外のCLI/APIエラーは即時伝播。
+        if (
+          err instanceof ClaudeCliError &&
+          err.subtype === SUBTYPE_STRUCTURED_OUTPUT_FAILED
+        ) {
+          return this.wordInfoWithoutSchema(stdinText);
+        }
+        throw err;
+      }
       const candidate =
         resultEvent.structured_output ?? tryParseJson(resultEvent.result);
       const parsed = WordInfoSchema.safeParse(candidate);
@@ -369,11 +402,36 @@ export class ClaudeCodeProvider implements LlmProvider {
       null
     );
   }
+
+  /**
+   * フォールバック経路: --json-schemaを使わず、プロンプト指示で素のJSONを
+   * 出力させてzodで検証する。構造化出力のリトライ上限に達したときのみ呼ぶ。
+   */
+  private async wordInfoWithoutSchema(stdinText: string): Promise<WordInfo> {
+    const systemPrompt = `${WORD_SYSTEM_PROMPT}
+
+回答は上記フィールドを持つ単一のJSONオブジェクトのみを出力すること。コードフェンスや説明文をJSONの前後に付けないこと。`;
+    const args = [...baseArgs(systemPrompt, "low"), "--output-format", "json"];
+    const resultEvent = await runClaudeJson(args, stdinText);
+    const parsed = WordInfoSchema.safeParse(tryParseJson(resultEvent.result));
+    if (parsed.success) {
+      return parsed.data;
+    }
+    throw new ClaudeCliError(
+      `単語情報の解析に失敗しました(フォールバック経路): ${parsed.error.message}`,
+      null
+    );
+  }
 }
 
-function tryParseJson(text: string): unknown {
+function tryParseJson(text: string | null): unknown {
+  if (typeof text !== "string") return undefined;
+  // 指示していてもモデルがコードフェンスで包むことがあるため防御的に剥がす
+  const unfenced = text
+    .replace(/^\s*```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/, "");
   try {
-    return JSON.parse(text);
+    return JSON.parse(unfenced);
   } catch {
     return undefined;
   }

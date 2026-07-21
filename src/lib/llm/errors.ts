@@ -20,7 +20,9 @@ export class ClaudeCliError extends Error {
   constructor(
     message: string,
     public readonly exitCode: number | null,
-    public readonly apiErrorStatus: number | null = null
+    public readonly apiErrorStatus: number | null = null,
+    /** CLI `result` イベントの subtype (例: error_max_structured_output_retries)。 */
+    public readonly subtype: string | null = null
   ) {
     super(message);
     this.name = "ClaudeCliError";
