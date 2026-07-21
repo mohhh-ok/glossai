@@ -368,23 +368,23 @@ function WordRow({
         }}
         className="flex cursor-pointer items-center gap-3"
       >
-        <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <div className="min-w-0">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
             <p className="font-serif-en text-lg text-[rgb(var(--gray-dark))]">
               {entry.surface}
             </p>
-            <p className="truncate text-sm text-[rgb(var(--gray))]">
-              {entry.info.meaningJa}
-            </p>
+            <SpeakerButton
+              label={`${entry.surface} の発音を再生`}
+              active={playingText === entry.surface}
+              onClick={(e) => {
+                e.stopPropagation();
+                play(entry.surface);
+              }}
+            />
           </div>
-          <SpeakerButton
-            label={`${entry.surface} の発音を再生`}
-            active={playingText === entry.surface}
-            onClick={(e) => {
-              e.stopPropagation();
-              play(entry.surface);
-            }}
-          />
+          <p className="truncate text-sm text-[rgb(var(--gray))]">
+            {entry.info.meaningJa}
+          </p>
         </div>
         <span className="shrink-0 text-xs text-[rgb(var(--gray))]">
           {entry.lookup_count}回・{formatMonthDay(entry.last_seen_at)}
