@@ -16,9 +16,8 @@ export async function POST(req: Request) {
     return Response.json({ error: "text は必須です。" }, { status: 400 });
   }
 
-  const provider = getLlmProvider();
-
   try {
+    const provider = getLlmProvider();
     const stream = await provider.explainText(text);
     return new Response(stream, {
       headers: { "Content-Type": "text/plain; charset=utf-8" },

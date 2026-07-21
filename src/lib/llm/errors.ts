@@ -28,12 +28,30 @@ export class ClaudeCliError extends Error {
 }
 
 /**
+ * Thrown by registry.ts's resolve() when asked for a provider name that
+ * isn't registered. Defined here rather than in registry.ts so registry.ts
+ * can import it without creating a cycle: registry.ts already imports
+ * claude-code.ts, which imports ClaudeCliError/ClaudeCliNotFoundError from
+ * this file — if this file imported registry.ts back, that would be
+ * circular.
+ */
+export class UnknownProviderError extends Error {
+  constructor(name: string, available: string[]) {
+    super(`未知のプロバイダ: "${name}"。利用可能: ${available.join(", ")}`);
+    this.name = "UnknownProviderError";
+  }
+}
+
+/**
  * Maps an error thrown by either LLM provider (Anthropic SDK, or the local
  * claude-code CLI provider) to a JSON error Response. Always branches on
  * typed exception classes — never on string matching, except for the one
  * documented Anthropic SDK quirk below.
  */
 export function llmErrorResponse(err: unknown): Response {
+  if (err instanceof UnknownProviderError) {
+    return Response.json({ error: err.message }, { status: 400 });
+  }
   if (err instanceof Anthropic.AuthenticationError) {
     return Response.json(
       { error: "ANTHROPIC_API_KEYが未設定です。README参照。" },

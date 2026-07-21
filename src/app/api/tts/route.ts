@@ -1,5 +1,5 @@
-import OpenAI from "openai";
-import { OpenAiTtsProvider } from "@/lib/tts/openai";
+import { resolve } from "@/lib/tts/registry";
+import { ttsErrorResponse } from "@/lib/tts/errors";
 
 export const runtime = "nodejs";
 
@@ -16,37 +16,13 @@ export async function POST(req: Request) {
     return Response.json({ error: "text は必須です。" }, { status: 400 });
   }
 
-  const provider = new OpenAiTtsProvider();
-
   try {
-    const audio = await provider.synthesize(text);
-    return new Response(audio, {
-      headers: { "Content-Type": "audio/mpeg" },
+    const provider = resolve();
+    const { data, contentType } = await provider.synthesize(text);
+    return new Response(data, {
+      headers: { "Content-Type": contentType },
     });
   } catch (err) {
-    if (err instanceof OpenAI.AuthenticationError) {
-      return Response.json(
-        { error: "OPENAI_API_KEYが未設定です" },
-        { status: 401 }
-      );
-    }
-    if (err instanceof OpenAI.APIError) {
-      return Response.json(
-        { error: err.message },
-        { status: err.status ?? 500 }
-      );
-    }
-    // キー未設定はクライアント構築時にOpenAIError(基底クラス)で投げられる
-    if (err instanceof OpenAI.OpenAIError) {
-      return Response.json(
-        { error: "OPENAI_API_KEYが未設定です。READMEのSetupを参照してください。" },
-        { status: 401 }
-      );
-    }
-    console.error(err);
-    return Response.json(
-      { error: "音声の生成に失敗しました。" },
-      { status: 500 }
-    );
+    return ttsErrorResponse(err);
   }
 }

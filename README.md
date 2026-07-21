@@ -15,7 +15,7 @@ glossai is BYOK (bring your own key) and self-hosted — it never proxies your k
 - **Example sentences with audio** — every word comes with two contextual example sentences, each with its own speaker button.
 - **AI reading breakdown** — a streamed, sentence-by-sentence explanation of the whole passage, plus key expressions worth learning.
 - **BYOK, self-hosted** — bring your own Anthropic and OpenAI API keys; nothing is stored server-side beyond the request lifecycle.
-- **Provider abstraction** — the LLM and TTS backends sit behind thin interfaces (`src/lib/llm`, `src/lib/tts`), so swapping providers doesn't touch route handlers or UI.
+- **Plugin providers** — the LLM and TTS backends sit behind thin interfaces with a small registry (`src/lib/llm`, `src/lib/tts`), so swapping or adding a provider doesn't touch route handlers or UI. Audio works out of the box via macOS's built-in `say` — no API key needed for TTS.
 
 ## Quick Start
 
@@ -34,11 +34,31 @@ All configuration is via environment variables (`.env.local`):
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | Yes, unless `GLOSSAI_LLM_PROVIDER=claude-code` | — | Used for reading explanations and word/phrase lookups. |
-| `OPENAI_API_KEY` | Yes (for audio) | — | Used for text-to-speech playback. Without it, the app still works but speaker buttons return an error. |
+| `ANTHROPIC_API_KEY` | Yes, if `GLOSSAI_LLM_PROVIDER=anthropic` | — | Used for reading explanations and word/phrase lookups. |
+| `OPENAI_API_KEY` | Yes, if `GLOSSAI_TTS_PROVIDER=openai` | — | Used for text-to-speech playback via the OpenAI API. |
 | `GLOSSAI_LLM_PROVIDER` | No | `anthropic` | `anthropic` or `claude-code` — see [Use your Claude subscription](#use-your-claude-subscription-claude-code-backend) below. |
 | `GLOSSAI_MODEL` | No | `claude-opus-4-8` (`anthropic`) / `sonnet` (`claude-code`) | Model used for both the explain and word-lookup endpoints. |
-| `GLOSSAI_TTS_VOICE` | No | `alloy` | OpenAI TTS voice (`gpt-4o-mini-tts`). |
+| `GLOSSAI_TTS_PROVIDER` | No | `say` | `say` (macOS's built-in TTS, no API key) or `openai` (`gpt-4o-mini-tts`, needs `OPENAI_API_KEY`). |
+| `GLOSSAI_TTS_VOICE` | No | `Samantha` (`say`) / `alloy` (`openai`) | Voice name for whichever TTS provider is active. For `say`, must be a name `say -v '?'` lists. |
+
+## Providers (plugin architecture)
+
+The LLM and TTS backends are both pluggable providers behind a small registry — `src/lib/llm/registry.ts` and `src/lib/tts/registry.ts`. Adding a new backend is 3 steps:
+
+1. **Implement the interface** — `LlmProvider` (`src/lib/llm/types.ts`) or `TtsProvider` (`src/lib/tts/types.ts`) — in a new file alongside the existing providers.
+2. **Register it** — add one line to the `providers` map in the corresponding `registry.ts`.
+3. **Switch to it** — set `GLOSSAI_LLM_PROVIDER` or `GLOSSAI_TTS_PROVIDER` to its registered name.
+
+No other file needs to change; route handlers only ever see the interface. An unrecognized provider name fails fast with the list of registered names, rather than silently falling back to the default.
+
+Built-in providers:
+
+| Registry | Name | File | Notes |
+| --- | --- | --- | --- |
+| LLM | `anthropic` (default) | `src/lib/llm/anthropic.ts` | Official Anthropic SDK, billed to `ANTHROPIC_API_KEY`. |
+| LLM | `claude-code` | `src/lib/llm/claude-code.ts` | Local `claude` CLI, subscription login instead of an API key. |
+| TTS | `say` (default) | `src/lib/tts/say.ts` | macOS's built-in `say`, no API key, macOS only. |
+| TTS | `openai` | `src/lib/tts/openai.ts` | `gpt-4o-mini-tts` via the OpenAI API. |
 
 ## Use your Claude subscription (Claude Code backend)
 
@@ -48,7 +68,7 @@ If you have a Claude subscription (Pro/Max) and don't want to pay for API credit
 GLOSSAI_LLM_PROVIDER=claude-code
 ```
 
-This routes the explain and word-lookup endpoints through your local [Claude Code](https://claude.com/product/claude-code) CLI (`claude -p`, headless/print mode) instead of the Anthropic API. `ANTHROPIC_API_KEY` is not needed for this backend — TTS still requires `OPENAI_API_KEY` as usual.
+This routes the explain and word-lookup endpoints through your local [Claude Code](https://claude.com/product/claude-code) CLI (`claude -p`, headless/print mode) instead of the Anthropic API. `ANTHROPIC_API_KEY` is not needed for this backend. This setting is independent of TTS — see `GLOSSAI_TTS_PROVIDER` above.
 
 Requirements:
 

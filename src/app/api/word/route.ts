@@ -16,9 +16,8 @@ export async function POST(req: Request) {
     return Response.json({ error: "word は必須です。" }, { status: 400 });
   }
 
-  const provider = getLlmProvider();
-
   try {
+    const provider = getLlmProvider();
     const info = await provider.wordInfo(
       word,
       typeof context === "string" ? context : ""
