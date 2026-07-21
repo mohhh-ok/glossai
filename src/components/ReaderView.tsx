@@ -1,53 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
-import { tokenize } from "@/lib/tokenize";
-import { GlossCard } from "./GlossCard";
+import { useRef, useState } from "react";
+import { GlossableText } from "./GlossableText";
 
 interface ReaderViewProps {
   text: string;
   onBack: () => void;
 }
 
-interface GlossTarget {
-  phrase: string;
-  anchor: { x: number; y: number };
-}
-
 export function ReaderView({ text, onBack }: ReaderViewProps) {
-  const tokens = useMemo(() => tokenize(text), [text]);
-  const [gloss, setGloss] = useState<GlossTarget | null>(null);
-
   const [explainText, setExplainText] = useState("");
   const [isExplaining, setIsExplaining] = useState(false);
   const [explainError, setExplainError] = useState<string | null>(null);
   const [hasExplained, setHasExplained] = useState(false);
   const explainAbortRef = useRef<AbortController | null>(null);
-
-  function openGloss(phrase: string, x: number, y: number) {
-    setGloss({ phrase, anchor: { x, y } });
-  }
-
-  function handleWordClick(word: string, e: React.MouseEvent) {
-    // If a drag-selection just produced a non-empty selection, the
-    // mouseup handler below already opened (or will open) a phrase card —
-    // don't also open a single-word card for the same gesture.
-    const selected = window.getSelection()?.toString().trim();
-    if (selected) return;
-    openGloss(word, e.clientX, e.clientY);
-  }
-
-  function handleMouseUp(e: React.MouseEvent) {
-    const selection = window.getSelection();
-    const selected = selection?.toString().trim() ?? "";
-    if (!selected) return;
-
-    const wordCount = selected.split(/\s+/).filter(Boolean).length;
-    if (wordCount < 2 || wordCount > 6) return;
-
-    openGloss(selected, e.clientX, e.clientY);
-  }
 
   async function handleExplain() {
     explainAbortRef.current?.abort();
@@ -113,24 +80,7 @@ export function ReaderView({ text, onBack }: ReaderViewProps) {
       </header>
 
       <main className="mx-auto w-full max-w-[720px] flex-1 px-6 py-10">
-        <p
-          onMouseUp={handleMouseUp}
-          className="font-serif-en select-text text-[1.15rem] leading-[1.9] text-[rgb(var(--gray-dark))]"
-        >
-          {tokens.map((token, i) =>
-            token.type === "word" ? (
-              <span
-                key={i}
-                onClick={(e) => handleWordClick(token.value, e)}
-                className="cursor-pointer border-b border-dotted border-transparent transition-colors hover:border-[rgb(var(--gray))]"
-              >
-                {token.value}
-              </span>
-            ) : (
-              <span key={i}>{token.value}</span>
-            )
-          )}
-        </p>
+        <GlossableText text={text} variant="reader" />
 
         <div className="mt-10 flex justify-center">
           <button
@@ -161,18 +111,6 @@ export function ReaderView({ text, onBack }: ReaderViewProps) {
           </section>
         )}
       </main>
-
-      {gloss && (
-        <GlossCard
-          // Force a fresh mount per lookup target so GlossCard's lazy
-          // cache-hit state initializer always runs against the right key.
-          key={`${gloss.phrase}-${gloss.anchor.x}-${gloss.anchor.y}`}
-          word={gloss.phrase}
-          context={text}
-          anchor={gloss.anchor}
-          onClose={() => setGloss(null)}
-        />
-      )}
     </div>
   );
 }

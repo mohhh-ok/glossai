@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { WordInfo } from "@/lib/llm/schema";
 import { PENDING_TEXT_KEY } from "@/lib/pendingText";
+import { GlossableText } from "./GlossableText";
 import { WordInfoView } from "./WordInfoView";
 
 interface WordEntry {
@@ -345,9 +346,7 @@ function ExplainRow({
 
       {expanded && (
         <div className="gloss-card mt-3 rounded-md bg-white p-4">
-          <blockquote className="font-serif-en rounded-md bg-[rgb(242,240,238)] p-3 text-[14px] leading-relaxed text-[rgb(var(--gray-dark))]">
-            {entry.text}
-          </blockquote>
+          <GlossableText text={entry.text} variant="quote" />
           <p className="mt-4 whitespace-pre-wrap text-[15px] leading-relaxed">
             {entry.body}
           </p>
